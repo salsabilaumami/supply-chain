@@ -44,10 +44,6 @@ Sistem mengintegrasikan data negara, kondisi ekonomi, cuaca, nilai tukar mata ua
 - World Port Index Dataset
 - OpenStreetMap
 
-## Project Status
-
-Development started on July 5, 2026.
-
 ### Completed
 
 - [x] Laravel 13 project initialization
