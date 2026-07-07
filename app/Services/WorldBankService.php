@@ -34,28 +34,6 @@ class WorldBankService
         ],
     ];
 
-    public function getCountryIndicators(string $iso3Code): array
-    {
-        $iso3Code = strtoupper(trim($iso3Code));
-
-        if (strlen($iso3Code) !== 3) {
-            throw new RuntimeException(
-                'Kode ISO3 negara tidak valid.'
-            );
-        }
-
-        $results = [];
-
-        foreach (self::INDICATORS as $key => $indicator) {
-            $results[$key] = $this->getLatestIndicator(
-                $iso3Code,
-                $indicator['code']
-            );
-        }
-
-        return $results;
-    }
-
     public function syncCountryIndicators(Country $country): array
     {
         if (empty($country->iso3_code)) {
@@ -64,9 +42,7 @@ class WorldBankService
             );
         }
 
-        $apiResults = $this->getCountryIndicators(
-            $country->iso3_code
-        );
+        $apiResults = $this->getCountryIndicators($country->iso3_code);
 
         $synced = 0;
         $skipped = 0;
@@ -117,6 +93,26 @@ class WorldBankService
         ];
     }
 
+    public function getCountryIndicators(string $iso3Code): array
+    {
+        $iso3Code = strtoupper(trim($iso3Code));
+
+        if (strlen($iso3Code) !== 3) {
+            throw new RuntimeException('Kode ISO3 negara tidak valid.');
+        }
+
+        $results = [];
+
+        foreach (self::INDICATORS as $key => $indicator) {
+            $results[$key] = $this->getLatestIndicator(
+                $iso3Code,
+                $indicator['code']
+            );
+        }
+
+        return $results;
+    }
+
     private function getLatestIndicator(
         string $iso3Code,
         string $indicatorCode
@@ -162,8 +158,7 @@ class WorldBankService
 
         $latestData = collect($payload[1])
             ->first(function ($item) {
-                return isset($item['value'])
-                    && $item['value'] !== null;
+                return isset($item['value']) && $item['value'] !== null;
             });
 
         if (!$latestData) {

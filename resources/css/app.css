@@ -1243,3 +1243,461 @@ body {
         flex-direction: column;
     }
 }
+
+
+/* =========================================================
+   ADMIN DASHBOARD
+   ========================================================= */
+
+.admin-page {
+    width: 100%;
+    min-width: 1040px;
+    padding: 32px;
+}
+
+.admin-header {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+}
+
+.admin-header-badge {
+    min-width: 210px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: #eff6ff;
+}
+
+.admin-header-badge > i {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: #2563eb;
+    background: #dbeafe;
+    font-size: 1.2rem;
+}
+
+.admin-header-badge div {
+    min-width: 0;
+}
+
+.admin-header-badge span,
+.admin-header-badge strong {
+    display: block;
+}
+
+.admin-header-badge span {
+    margin-bottom: 2px;
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.admin-header-badge strong {
+    color: #1e3a8a;
+    font-size: 0.88rem;
+}
+
+/* =========================================================
+   PRIMARY ADMIN STATISTICS
+   ========================================================= */
+
+.admin-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.admin-stat-card,
+.admin-data-card,
+.admin-sync-card,
+.admin-system-card {
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.admin-stat-card {
+    min-width: 0;
+    padding: 22px;
+}
+
+.admin-stat-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.admin-stat-label {
+    display: block;
+    margin-bottom: 9px;
+    color: #7a8499;
+    font-size: 0.8rem;
+}
+
+.admin-stat-value {
+    display: block;
+    color: #111827;
+    font-size: 1.85rem;
+    line-height: 1;
+}
+
+.admin-stat-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    color: #2563eb;
+    background: #eff6ff;
+    font-size: 1.2rem;
+}
+
+.admin-stat-footer {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid #edf1f5;
+    color: #7a8499;
+    font-size: 0.76rem;
+}
+
+/* =========================================================
+   ADMIN SECTIONS
+   ========================================================= */
+
+.admin-section {
+    margin-top: 40px;
+}
+
+.admin-section-heading {
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.admin-section-heading h2 {
+    margin: 0;
+    color: #172033;
+    font-size: 1.25rem;
+    font-weight: 750;
+}
+
+.admin-section-heading p {
+    margin: 6px 0 0;
+    color: #7a8499;
+    font-size: 0.86rem;
+}
+
+/* =========================================================
+   DATA COVERAGE
+   ========================================================= */
+
+.admin-data-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.admin-data-card {
+    min-width: 0;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.admin-data-icon {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    color: #2563eb;
+    background: #eff6ff;
+    font-size: 1.25rem;
+}
+
+.admin-data-card > div:last-child {
+    min-width: 0;
+}
+
+.admin-data-card span,
+.admin-data-card strong,
+.admin-data-card small {
+    display: block;
+}
+
+.admin-data-card span {
+    margin-bottom: 3px;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.admin-data-card strong {
+    color: #111827;
+    font-size: 1.3rem;
+    line-height: 1.2;
+}
+
+.admin-data-card small {
+    margin-top: 4px;
+    color: #94a3b8;
+    font-size: 0.7rem;
+}
+
+/* =========================================================
+   SYNCHRONIZATION STATUS
+   ========================================================= */
+
+.admin-sync-card {
+    overflow: hidden;
+}
+
+.admin-sync-row {
+    min-height: 82px;
+    padding: 17px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.admin-sync-row + .admin-sync-row {
+    border-top: 1px solid #edf1f5;
+}
+
+.admin-sync-source {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.admin-sync-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: #2563eb;
+    background: #eff6ff;
+    font-size: 1.05rem;
+}
+
+.admin-sync-source strong,
+.admin-sync-source span,
+.admin-sync-time strong,
+.admin-sync-time span {
+    display: block;
+}
+
+.admin-sync-source strong {
+    color: #1e293b;
+    font-size: 0.88rem;
+}
+
+.admin-sync-source span {
+    margin-top: 3px;
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+
+.admin-sync-time {
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.admin-sync-time strong {
+    color: #334155;
+    font-size: 0.82rem;
+}
+
+.admin-sync-time span {
+    margin-top: 3px;
+    color: #94a3b8;
+    font-size: 0.7rem;
+}
+
+/* =========================================================
+   SYSTEM SUMMARY
+   ========================================================= */
+
+.admin-system-card {
+    margin-top: 24px;
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+}
+
+.admin-system-status {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+}
+
+.admin-system-dot {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1);
+}
+
+.admin-system-status strong {
+    display: block;
+    color: #172033;
+    font-size: 0.9rem;
+}
+
+.admin-system-status p {
+    max-width: 620px;
+    margin: 5px 0 0;
+    color: #7a8499;
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
+.admin-system-meta {
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.admin-system-meta span,
+.admin-system-meta strong {
+    display: block;
+}
+
+.admin-system-meta span {
+    margin-bottom: 4px;
+    color: #94a3b8;
+    font-size: 0.7rem;
+}
+
+.admin-system-meta strong {
+    color: #334155;
+    font-size: 0.8rem;
+}
+
+/* =========================================================
+   ADMIN RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1399.98px) {
+    .admin-page {
+        min-width: 1000px;
+        padding: 28px;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .admin-page {
+        min-width: 960px;
+        padding: 24px;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .admin-page {
+        min-width: 900px;
+        padding: 24px;
+    }
+}
+
+/* =====================================================
+   COUNTRY MONITORING FINAL POLISH
+   ===================================================== */
+
+.country-overview-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 18px;
+    align-items: stretch;
+}
+
+.country-stat {
+    min-width: 0;
+    overflow: visible;
+}
+
+.country-stat span,
+.country-stat strong,
+.country-stat small {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    word-break: normal;
+}
+
+.country-stat strong {
+    font-size: 1.05rem;
+    line-height: 1.35;
+}
+
+.analysis-card {
+    overflow: visible;
+}
+
+.analysis-card .country-overview-stats {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.country-selector-control {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.country-selector-control select {
+    min-width: 260px;
+}
+
+.badge {
+    white-space: normal;
+}
+
+.table th,
+.table td {
+    vertical-align: middle;
+}
+
+canvas {
+    max-width: 100%;
+}
+
+@media (max-width: 768px) {
+    .country-selector-control {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .country-selector-control select,
+    .country-selector-control button {
+        width: 100%;
+    }
+
+    .country-overview-stats {
+        grid-template-columns: 1fr;
+    }
+}
+

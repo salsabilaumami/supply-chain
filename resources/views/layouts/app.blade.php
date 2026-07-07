@@ -61,7 +61,10 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="{{ route('countries.index') }}"
+                    class="sidebar-link {{ request()->routeIs('countries.*') ? 'active' : '' }}"
+                >
                     <i class="bi bi-globe2"></i>
 
                     <span>
@@ -69,7 +72,10 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="{{ route('weather.index') }}"
+                    class="sidebar-link {{ request()->routeIs('weather.*') ? 'active' : '' }}"
+                >
                     <i class="bi bi-cloud-lightning-rain"></i>
 
                     <span>
@@ -77,7 +83,10 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="{{ route('currency.index') }}"
+                    class="sidebar-link {{ request()->routeIs('currency.*') ? 'active' : '' }}"
+                >
                     <i class="bi bi-currency-exchange"></i>
 
                     <span>
@@ -85,7 +94,10 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="{{ route('news.index') }}"
+                    class="sidebar-link {{ request()->routeIs('news.*') ? 'active' : '' }}"
+                >
                     <i class="bi bi-newspaper"></i>
 
                     <span>
@@ -97,7 +109,11 @@
                     LOGISTIK
                 </div>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="#"
+                    class="sidebar-link"
+                    title="Fitur ini akan dibuat pada tahap berikutnya"
+                >
                     <i class="bi bi-geo-alt"></i>
 
                     <span>
@@ -105,7 +121,11 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="#"
+                    class="sidebar-link"
+                    title="Fitur ini akan dibuat pada tahap berikutnya"
+                >
                     <i class="bi bi-arrow-left-right"></i>
 
                     <span>
@@ -113,7 +133,11 @@
                     </span>
                 </a>
 
-                <a href="#" class="sidebar-link">
+                <a
+                    href="#"
+                    class="sidebar-link"
+                    title="Fitur ini akan dibuat pada tahap berikutnya"
+                >
                     <i class="bi bi-bookmark-star"></i>
 
                     <span>
@@ -126,7 +150,10 @@
                         SISTEM
                     </div>
 
-                    <a href="#" class="sidebar-link">
+                    <a
+                        href="{{ route('admin.dashboard') }}"
+                        class="sidebar-link {{ request()->routeIs('admin.*') ? 'active' : '' }}"
+                    >
                         <i class="bi bi-sliders"></i>
 
                         <span>
@@ -134,6 +161,7 @@
                         </span>
                     </a>
                 @endif
+
             </nav>
 
             {{-- User Account --}}
@@ -226,5 +254,7 @@
             </main>
         </div>
     </div>
+
+    @stack('scripts')
 </body>
 </html>

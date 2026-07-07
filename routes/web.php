@@ -1,7 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\CountryMonitoringController;
+use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NewsController;
+use App\Http\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -22,6 +27,53 @@ Route::middleware('auth')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get('/countries', [CountryMonitoringController::class, 'index'])
+        ->name('countries.index');
+
+    Route::post('/countries/sync-all', [CountryMonitoringController::class, 'syncAll'])
+        ->name('countries.sync-all');
+
+    Route::post('/countries/sync-economic', [CountryMonitoringController::class, 'syncEconomic'])
+        ->name('countries.sync-economic');
+
+    Route::post('/countries/sync-weather', [CountryMonitoringController::class, 'syncWeather'])
+        ->name('countries.sync-weather');
+
+    Route::post('/countries/sync-currency', [CountryMonitoringController::class, 'syncCurrency'])
+        ->name('countries.sync-currency');
+
+    Route::post('/countries/sync-news', [CountryMonitoringController::class, 'syncNews'])
+        ->name('countries.sync-news');
+
+    Route::post('/countries/calculate-risk', [CountryMonitoringController::class, 'calculateRisk'])
+        ->name('countries.calculate-risk');
+
+    Route::get('/api/countries', [CountryMonitoringController::class, 'show'])
+        ->name('api.countries.show');
+
+    Route::get('/weather', [WeatherController::class, 'index'])
+        ->name('weather.index');
+
+    Route::get('/api/weather', [WeatherController::class, 'show'])
+        ->name('api.weather.show');
+
+    Route::get('/currency', [CurrencyController::class, 'index'])
+        ->name('currency.index');
+
+    Route::get('/api/currency', [CurrencyController::class, 'show'])
+        ->name('api.currency.show');
+
+    Route::get('/news', [NewsController::class, 'index'])
+        ->name('news.index');
+
+    Route::get('/api/news', [NewsController::class, 'show'])
+        ->name('api.news.show');
+
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
+
+    Route::middleware('admin')->group(function () {
+        Route::get('/admin', [AdminDashboardController::class, 'index'])
+            ->name('admin.dashboard');
+    });
 });

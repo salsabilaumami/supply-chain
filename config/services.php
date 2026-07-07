@@ -39,4 +39,26 @@ return [
         'key' => env('REST_COUNTRIES_API_KEY'),
     ],
 
+    'open_meteo' => [
+        'base_url' => env(
+            'OPEN_METEO_BASE_URL',
+            'https://api.open-meteo.com/v1'
+        ),
+    ],
+
+    'exchange_rate' => [
+        'base_url' => env(
+            'EXCHANGE_RATE_BASE_URL',
+            'https://open.er-api.com/v6'
+        ),
+    ],
+
+    'gnews' => [
+        'base_url' => env(
+            'GNEWS_BASE_URL',
+            'https://gnews.io/api/v4'
+        ),
+        'api_key' => env('GNEWS_API_KEY'),
+    ],
+
 ];

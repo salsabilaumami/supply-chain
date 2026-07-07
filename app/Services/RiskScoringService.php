@@ -5,11 +5,16 @@ namespace App\Services;
 class RiskScoringService
 {
     private array $weights = [
-        'weather' => 0.25,
-        'inflation' => 0.25,
-        'currency' => 0.20,
-        'news' => 0.30,
+        'weather' => 0.30,
+        'inflation' => 0.20,
+        'currency' => 0.10,
+        'news' => 0.40,
     ];
+
+    public function getWeights(): array
+    {
+        return $this->weights;
+    }
 
     public function calculateTotalScore(
         float $weatherScore,
@@ -31,7 +36,7 @@ class RiskScoringService
         return match (true) {
             $score >= 75 => 'critical',
             $score >= 50 => 'high',
-            $score >= 25 => 'medium',
+            $score >= 25 => 'moderate',
             default => 'low',
         };
     }
@@ -58,10 +63,10 @@ class RiskScoringService
         };
 
         $weatherConditionScore = match (true) {
-            in_array($weatherCode, [95, 96, 99]) => 100,
-            in_array($weatherCode, [80, 81, 82]) => 75,
-            in_array($weatherCode, [61, 63, 65, 66, 67]) => 60,
-            in_array($weatherCode, [45, 48]) => 40,
+            in_array($weatherCode, [95, 96, 99], true) => 100,
+            in_array($weatherCode, [80, 81, 82], true) => 75,
+            in_array($weatherCode, [61, 63, 65, 66, 67], true) => 60,
+            in_array($weatherCode, [45, 48], true) => 40,
             default => 10,
         };
 
@@ -70,10 +75,10 @@ class RiskScoringService
             ($windScore * 0.35) +
             ($weatherConditionScore * 0.30);
 
-                return round($weatherScore, 2);
+        return round($weatherScore, 2);
     }
 
-       public function calculateInflationScore(float $inflationRate): float
+    public function calculateInflationScore(float $inflationRate): float
     {
         $inflationScore = match (true) {
             $inflationRate < 0 => 55,
@@ -88,7 +93,7 @@ class RiskScoringService
         return (float) $inflationScore;
     }
 
-        public function calculateCurrencyScore(float $changePercentage): float
+    public function calculateCurrencyScore(float $changePercentage): float
     {
         $absoluteChange = abs($changePercentage);
 

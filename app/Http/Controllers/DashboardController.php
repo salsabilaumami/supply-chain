@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Country;
 use App\Models\EconomicIndicator;
 use App\Services\RiskScoringService;
+use App\Services\WeatherService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Throwable;
 
 class DashboardController extends Controller
 {
@@ -20,7 +22,8 @@ class DashboardController extends Controller
 
     public function index(
         Request $request,
-        RiskScoringService $riskScoringService
+        RiskScoringService $riskScoringService,
+        WeatherService $weatherService
     ): View {
         $countries = Country::query()
             ->alphabetical()
@@ -40,16 +43,29 @@ class DashboardController extends Controller
                 ->firstOrFail();
         }
 
-        $economicData = $this->getEconomicData(
-            $selectedCountry
-        );
+        $economicData = $this->getEconomicData($selectedCountry);
+
+        $weatherData = null;
+        $weatherMetrics = [
+            'precipitation' => 25,
+            'wind_speed' => 65,
+            'weather_code' => 95,
+        ];
+
+        try {
+            $weatherData = $weatherService->getCurrentWeather($selectedCountry);
+
+            $weatherMetrics = [
+                'precipitation' => (float) ($weatherData->precipitation ?? 0),
+                'wind_speed' => (float) ($weatherData->wind_speed ?? 0),
+                'weather_code' => (int) ($weatherData->weather_code ?? 0),
+            ];
+        } catch (Throwable $exception) {
+            $weatherData = null;
+        }
 
         $rawData = [
-            'weather' => [
-                'precipitation' => 25,
-                'wind_speed' => 65,
-                'weather_code' => 95,
-            ],
+            'weather' => $weatherMetrics,
 
             'inflation' => [
                 'rate' => $economicData['inflation']['value'] ?? 0,
@@ -65,11 +81,13 @@ class DashboardController extends Controller
             ],
         ];
 
-        $weatherScore = $riskScoringService->calculateWeatherScore(
-            $rawData['weather']['precipitation'],
-            $rawData['weather']['wind_speed'],
-            $rawData['weather']['weather_code']
-        );
+        $weatherScore = $weatherData
+            ? (float) $weatherData->weather_risk
+            : $riskScoringService->calculateWeatherScore(
+                $rawData['weather']['precipitation'],
+                $rawData['weather']['wind_speed'],
+                $rawData['weather']['weather_code']
+            );
 
         $inflationScore = $riskScoringService->calculateInflationScore(
             $rawData['inflation']['rate']
@@ -117,6 +135,9 @@ class DashboardController extends Controller
 
             'economicData' => $economicData,
             'hasEconomicData' => $this->hasEconomicData($economicData),
+
+            'weatherData' => $weatherData,
+            'weatherAvailable' => $weatherData !== null,
 
             'rawData' => $rawData,
 
