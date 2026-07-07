@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'rest_countries' => [
+        'key' => env('REST_COUNTRIES_API_KEY'),
+    ],
+
 ];

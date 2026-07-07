@@ -11,6 +11,10 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    public const ROLE_USER = 'user';
+
+    public const ROLE_ADMIN = 'admin';
+
     protected $fillable = [
         'name',
         'email',
@@ -33,6 +37,21 @@ class User extends Authenticatable
             'status' => 'boolean',
             'last_login_at' => 'datetime',
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isUser(): bool
+    {
+        return $this->role === self::ROLE_USER;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === true;
     }
 
     public function watchlists(): HasMany

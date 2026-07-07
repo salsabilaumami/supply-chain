@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -31,6 +32,32 @@ class Country extends Model
             'longitude' => 'decimal:7',
             'population' => 'integer',
         ];
+    }
+
+    public function scopeAlphabetical(Builder $query): Builder
+    {
+        return $query->orderBy('name');
+    }
+
+    public function scopeByIsoCode(
+        Builder $query,
+        string $isoCode
+    ): Builder {
+        $isoCode = strtoupper(trim($isoCode));
+
+        return $query->where(function (Builder $query) use ($isoCode) {
+            $query->where('iso2_code', $isoCode)
+                ->orWhere('iso3_code', $isoCode);
+        });
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        if (!empty($this->iso3_code)) {
+            return $this->name . ' (' . $this->iso3_code . ')';
+        }
+
+        return $this->name;
     }
 
     public function economicIndicators(): HasMany
