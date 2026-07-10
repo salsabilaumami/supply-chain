@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Country;
+use App\Models\NewsCache;
 use App\Services\NewsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Throwable;
 
@@ -15,93 +17,230 @@ class NewsController extends Controller
         Request $request,
         NewsService $newsService
     ): View {
-        $countries = Country::query()
-            ->orderBy('name')
-            ->get();
-
-        $selectedIsoCode = strtoupper(
-            trim($request->string('country', 'IDN')->toString())
-        );
-
-        $selectedCountry = Country::query()
-            ->where(function ($query) use ($selectedIsoCode) {
-                $query->where('iso3_code', $selectedIsoCode)
-                    ->orWhere('iso2_code', $selectedIsoCode);
-            })
-            ->first();
-
-        if (!$selectedCountry) {
-            $selectedCountry = Country::query()
-                ->where('iso3_code', 'IDN')
-                ->firstOrFail();
-        }
-
-        $news = collect();
-        $errorMessage = null;
-
-        try {
-            $news = $newsService->getLatestNews(
-                $selectedCountry,
-                $request->boolean('refresh')
-            );
-        } catch (Throwable $exception) {
-            $errorMessage = $exception->getMessage();
-        }
-
-        return view('news.index', [
-            'countries' => $countries,
-            'selectedCountry' => $selectedCountry,
-            'news' => $news,
-            'errorMessage' => $errorMessage,
-        ]);
+        return view('news.index', $this->buildNewsData(
+            $request,
+            $newsService
+        ));
     }
 
     public function show(
         Request $request,
         NewsService $newsService
     ): JsonResponse {
-        $countryCode = strtoupper(
-            trim($request->string('country', 'IDN')->toString())
-        );
-
-        $country = Country::query()
-            ->where(function ($query) use ($countryCode) {
-                $query->where('iso3_code', $countryCode)
-                    ->orWhere('iso2_code', $countryCode);
-            })
-            ->firstOrFail();
-
-        $news = $newsService->getLatestNews(
-            $country,
-            $request->boolean('refresh')
+        $data = $this->buildNewsData(
+            $request,
+            $newsService
         );
 
         return response()->json([
-            'country' => [
-                'id' => $country->id,
-                'name' => $country->name,
-                'iso2_code' => $country->iso2_code,
-                'iso3_code' => $country->iso3_code,
-            ],
-            'articles' => $news->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'title' => $item->title,
-                    'description' => $item->description,
-                    'url' => $item->url,
-                    'source_name' => $item->source_name,
-                    'image_url' => $item->image_url,
-                    'published_at' => $item->published_at,
-                    'sentiment' => $item->sentiment ? [
-                        'positive_score' => (int) $item->sentiment->positive_score,
-                        'negative_score' => (int) $item->sentiment->negative_score,
-                        'neutral_score' => (int) $item->sentiment->neutral_score,
-                        'sentiment' => $item->sentiment->sentiment,
-                        'risk_score' => (float) $item->sentiment->risk_score,
-                        'analyzed_at' => $item->sentiment->analyzed_at,
-                    ] : null,
-                ];
-            })->values(),
+            'success' => true,
+            'message' => 'Data intelijen berita berhasil dimuat.',
+            'selected_country' => $data['selectedCountry']
+                ? $this->formatCountry($data['selectedCountry'])
+                : null,
+            'summary' => $data['summary'],
+            'news' => $data['newsItems'],
+            'chart_data' => $data['chartData'],
+            'api_error' => $data['apiError'],
         ]);
+    }
+
+    private function buildNewsData(
+        Request $request,
+        NewsService $newsService
+    ): array {
+        $countries = Country::query()
+            ->orderBy('name')
+            ->get();
+
+        $selectedCountry = $this->resolveSelectedCountry(
+            $request,
+            $countries
+        );
+
+        $apiError = null;
+
+        $newsItems = $selectedCountry
+            ? $this->getNewsItems($selectedCountry)
+            : collect();
+
+        $shouldRefresh = $selectedCountry
+            && (
+                $request->boolean('refresh')
+                || $newsItems->isEmpty()
+            );
+
+        if ($shouldRefresh) {
+            try {
+                $newsService->getLatestNews(
+                    $selectedCountry,
+                    true
+                );
+
+                $newsItems = $this->getNewsItems($selectedCountry);
+            } catch (Throwable $exception) {
+                $apiError = $exception->getMessage();
+            }
+        }
+
+        $summary = $this->buildSummary($newsItems);
+
+        return [
+            'countries' => $countries,
+            'selectedCountry' => $selectedCountry,
+            'newsItems' => $newsItems,
+            'summary' => $summary,
+            'chartData' => $this->buildChartData($summary),
+            'apiError' => $apiError,
+        ];
+    }
+
+    private function resolveSelectedCountry(
+        Request $request,
+        Collection $countries
+    ): ?Country {
+        if ($countries->isEmpty()) {
+            return null;
+        }
+
+        $selectedIsoCode = strtoupper(
+            trim($request->string('country', 'IDN')->toString())
+        );
+
+        $selectedCountry = Country::query()
+            ->where('iso3_code', $selectedIsoCode)
+            ->orWhere('iso2_code', $selectedIsoCode)
+            ->first();
+
+        if ($selectedCountry) {
+            return $selectedCountry;
+        }
+
+        $indonesia = Country::query()
+            ->where('iso3_code', 'IDN')
+            ->first();
+
+        return $indonesia ?: $countries->first();
+    }
+
+    private function getNewsItems(Country $country): Collection
+    {
+        return NewsCache::query()
+            ->with('sentiment')
+            ->where('country_id', $country->id)
+            ->latest('published_at')
+            ->limit(12)
+            ->get()
+            ->map(fn (NewsCache $news) => $this->formatNews($news))
+            ->values();
+    }
+
+    private function buildSummary(Collection $newsItems): array
+    {
+        $positiveCount = $newsItems
+            ->where('sentiment', 'positive')
+            ->count();
+
+        $neutralCount = $newsItems
+            ->where('sentiment', 'neutral')
+            ->count();
+
+        $negativeCount = $newsItems
+            ->where('sentiment', 'negative')
+            ->count();
+
+        $averageRisk = $newsItems->isNotEmpty()
+            ? round((float) $newsItems->avg('risk_score'), 2)
+            : 0.0;
+
+        return [
+            'total_articles' => $newsItems->count(),
+            'positive_count' => $positiveCount,
+            'neutral_count' => $neutralCount,
+            'negative_count' => $negativeCount,
+            'average_risk_score' => $averageRisk,
+            'risk_label' => $this->riskScoreLabel($averageRisk),
+        ];
+    }
+
+    private function buildChartData(array $summary): array
+    {
+        return [
+            'sentiment' => [
+                'labels' => [
+                    'Positif',
+                    'Netral',
+                    'Negatif',
+                ],
+                'values' => [
+                    $summary['positive_count'] ?? 0,
+                    $summary['neutral_count'] ?? 0,
+                    $summary['negative_count'] ?? 0,
+                ],
+            ],
+        ];
+    }
+
+    private function formatNews(NewsCache $news): array
+    {
+        $sentiment = $news->sentiment?->sentiment ?? 'neutral';
+
+        $riskScore = $news->sentiment
+            ? round((float) $news->sentiment->risk_score, 2)
+            : 50.0;
+
+        return [
+            'id' => $news->id,
+            'title' => $news->title,
+            'description' => $news->description,
+            'url' => $news->url,
+            'image_url' => $news->image_url ?? null,
+            'source_name' => $news->source_name,
+            'author' => $news->author ?? null,
+            'published_at' => $news->published_at
+                ? $news->published_at->format('d M Y H:i')
+                : null,
+            'sentiment' => $sentiment,
+            'sentiment_label' => $this->sentimentLabel($sentiment),
+            'positive_score' => $news->sentiment?->positive_score ?? 0,
+            'negative_score' => $news->sentiment?->negative_score ?? 0,
+            'neutral_score' => $news->sentiment?->neutral_score ?? 0,
+            'risk_score' => $riskScore,
+        ];
+    }
+
+    private function riskScoreLabel(float $score): string
+    {
+        return match (true) {
+            $score >= 75 => 'Risiko Kritis',
+            $score >= 50 => 'Risiko Tinggi',
+            $score >= 25 => 'Risiko Sedang',
+            default => 'Risiko Rendah',
+        };
+    }
+
+    private function sentimentLabel(?string $sentiment): string
+    {
+        return match ($sentiment) {
+            'positive' => 'Positif',
+            'negative' => 'Negatif',
+            'neutral' => 'Netral',
+            default => 'Netral',
+        };
+    }
+
+    private function formatCountry(Country $country): array
+    {
+        return [
+            'id' => $country->id,
+            'name' => $country->name,
+            'official_name' => $country->official_name,
+            'iso2_code' => $country->iso2_code,
+            'iso3_code' => $country->iso3_code,
+            'capital' => $country->capital,
+            'region' => $country->region,
+            'subregion' => $country->subregion,
+            'flag_url' => $country->flag_url,
+        ];
     }
 }

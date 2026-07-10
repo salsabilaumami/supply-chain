@@ -7,6 +7,7 @@
         $levelLabels = [
             'low' => 'Rendah',
             'medium' => 'Sedang',
+            'moderate' => 'Sedang',
             'high' => 'Tinggi',
             'critical' => 'Kritis',
         ];
@@ -14,16 +15,25 @@
         $levelColors = [
             'low' => 'success',
             'medium' => 'warning',
+            'moderate' => 'warning',
             'high' => 'danger',
             'critical' => 'dark',
         ];
+
+        $weatherColor = $levelColors[$weatherLevel] ?? 'secondary';
+        $inflationColor = $levelColors[$inflationLevel] ?? 'secondary';
+        $currencyColor = $levelColors[$currencyLevel] ?? 'secondary';
+        $newsColor = $levelColors[$newsLevel] ?? 'secondary';
+        $riskColor = $levelColors[$riskLevel] ?? 'secondary';
+
+        $weatherLabel = $levelLabels[$weatherLevel] ?? 'Belum tersedia';
+        $inflationLabel = $levelLabels[$inflationLevel] ?? 'Belum tersedia';
+        $currencyLabel = $levelLabels[$currencyLevel] ?? 'Belum tersedia';
+        $newsLabel = $levelLabels[$newsLevel] ?? 'Belum tersedia';
+        $riskLabel = $levelLabels[$riskLevel] ?? 'Belum tersedia';
     @endphp
 
     <div class="dashboard-page">
-
-        {{-- =====================================================
-             PAGE HEADER
-             ===================================================== --}}
         <section class="dashboard-header">
             <div class="dashboard-heading">
                 <div class="page-eyebrow">
@@ -35,7 +45,7 @@
                 </h1>
 
                 <p class="page-description">
-                    Pantau risiko ekonomi, cuaca, mata uang, dan berita
+                    Pantau risiko ekonomi, cuaca, mata uang, berita, dan skor risiko
                     pada rantai pasokan global.
                 </p>
             </div>
@@ -64,7 +74,7 @@
                                 value="{{ $country->iso3_code }}"
                                 @selected($selectedCountry->id === $country->id)
                             >
-                                {{ $country->display_name }}
+                                {{ $country->display_name ?? ($country->name . ' (' . $country->iso3_code . ')') }}
                             </option>
                         @endforeach
                     </select>
@@ -81,10 +91,71 @@
             </form>
         </section>
 
-        {{-- =====================================================
-             COUNTRY OVERVIEW
-             ===================================================== --}}
         <section class="country-overview-card">
+            <div class="country-overview-main">
+                <div class="country-identity">
+                    <span class="country-overview-label">
+                        Ringkasan Global
+                    </span>
+
+                    <h2>
+                        Status Monitoring Rantai Pasok
+                    </h2>
+                </div>
+            </div>
+
+            <div class="country-overview-stats">
+                <div class="country-stat">
+                    <span>Total Negara</span>
+
+                    <strong>
+                        {{ number_format($globalSummary['total_countries'] ?? 0, 0, ',', '.') }}
+                    </strong>
+
+                    <small>
+                        Negara tersedia
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Negara dengan Risk Score</span>
+
+                    <strong>
+                        {{ number_format($globalSummary['countries_with_risk'] ?? 0, 0, ',', '.') }}
+                    </strong>
+
+                    <small>
+                        Sudah dihitung
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Rata-rata Risiko</span>
+
+                    <strong>
+                        {{ number_format($globalSummary['average_risk_score'] ?? 0, 2, ',', '.') }}
+                    </strong>
+
+                    <small>
+                        Skor rata-rata
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Risiko Tertinggi</span>
+
+                    <strong>
+                        {{ $globalSummary['highest_risk_country'] ?? 'Belum tersedia' }}
+                    </strong>
+
+                    <small>
+                        Skor {{ number_format($globalSummary['highest_risk_score'] ?? 0, 2, ',', '.') }}
+                    </small>
+                </div>
+            </div>
+        </section>
+
+        <section class="country-overview-card mt-4">
             <div class="country-overview-main">
                 <div class="country-flag">
                     @if ($selectedCountry->flag_url)
@@ -121,6 +192,10 @@
                     <strong>
                         {{ $selectedCountry->capital ?? '-' }}
                     </strong>
+
+                    <small>
+                        Pusat pemerintahan
+                    </small>
                 </div>
 
                 <div class="country-stat">
@@ -129,6 +204,10 @@
                     <strong>
                         {{ $selectedCountry->region ?? '-' }}
                     </strong>
+
+                    <small>
+                        {{ $selectedCountry->subregion ?? '-' }}
+                    </small>
                 </div>
 
                 <div class="country-stat">
@@ -148,39 +227,20 @@
 
                     <strong>
                         @if ($economicData['population']['value'] !== null)
-                            {{ number_format(
-                                $economicData['population']['value'],
-                                0,
-                                ',',
-                                '.'
-                            ) }}
+                            {{ number_format($economicData['population']['value'], 0, ',', '.') }}
                         @else
-                            {{ number_format(
-                                $selectedCountry->population ?? 0,
-                                0,
-                                ',',
-                                '.'
-                            ) }}
+                            {{ number_format($selectedCountry->population ?? 0, 0, ',', '.') }}
                         @endif
                     </strong>
 
                     <small>
-                        @if ($economicData['population']['year'])
-                            World Bank {{ $economicData['population']['year'] }}
-                        @else
-                            Data profil negara
-                        @endif
+                        Tahun {{ $economicData['population']['year'] ?? '-' }}
                     </small>
                 </div>
             </div>
         </section>
 
-        {{-- =====================================================
-             RISK COMPONENTS
-             ===================================================== --}}
-        <section class="risk-card-grid">
-
-            {{-- Weather Risk --}}
+        <section class="risk-card-grid mt-4">
             <article class="risk-card">
                 <div class="risk-card-header">
                     <div>
@@ -189,13 +249,11 @@
                         </span>
 
                         <strong class="risk-card-score">
-                            {{ number_format($weatherScore, 0) }}
+                            {{ number_format($weatherScore, 0, ',', '.') }}
                         </strong>
 
-                        <span
-                            class="badge text-bg-{{ $levelColors[$weatherLevel] }}"
-                        >
-                            {{ $levelLabels[$weatherLevel] }}
+                        <span class="badge text-bg-{{ $weatherColor }}">
+                            {{ $weatherLabel }}
                         </span>
                     </div>
 
@@ -206,14 +264,13 @@
 
                 <div class="progress risk-progress">
                     <div
-                        class="progress-bar bg-{{ $levelColors[$weatherLevel] }}"
+                        class="progress-bar bg-{{ $weatherColor }} js-progress-bar"
                         role="progressbar"
-                        style="width: {{ min(100, max(0, $weatherScore)) }}%"
+                        data-progress-width="{{ min(100, max(0, $weatherScore)) }}"
                     ></div>
                 </div>
             </article>
 
-            {{-- Inflation Risk --}}
             <article class="risk-card">
                 <div class="risk-card-header">
                     <div>
@@ -222,13 +279,11 @@
                         </span>
 
                         <strong class="risk-card-score">
-                            {{ number_format($inflationScore, 0) }}
+                            {{ number_format($inflationScore, 0, ',', '.') }}
                         </strong>
 
-                        <span
-                            class="badge text-bg-{{ $levelColors[$inflationLevel] }}"
-                        >
-                            {{ $levelLabels[$inflationLevel] }}
+                        <span class="badge text-bg-{{ $inflationColor }}">
+                            {{ $inflationLabel }}
                         </span>
                     </div>
 
@@ -239,14 +294,13 @@
 
                 <div class="progress risk-progress">
                     <div
-                        class="progress-bar bg-{{ $levelColors[$inflationLevel] }}"
+                        class="progress-bar bg-{{ $inflationColor }} js-progress-bar"
                         role="progressbar"
-                        style="width: {{ min(100, max(0, $inflationScore)) }}%"
+                        data-progress-width="{{ min(100, max(0, $inflationScore)) }}"
                     ></div>
                 </div>
             </article>
 
-            {{-- Currency Risk --}}
             <article class="risk-card">
                 <div class="risk-card-header">
                     <div>
@@ -255,13 +309,11 @@
                         </span>
 
                         <strong class="risk-card-score">
-                            {{ number_format($currencyScore, 0) }}
+                            {{ number_format($currencyScore, 0, ',', '.') }}
                         </strong>
 
-                        <span
-                            class="badge text-bg-{{ $levelColors[$currencyLevel] }}"
-                        >
-                            {{ $levelLabels[$currencyLevel] }}
+                        <span class="badge text-bg-{{ $currencyColor }}">
+                            {{ $currencyLabel }}
                         </span>
                     </div>
 
@@ -272,14 +324,13 @@
 
                 <div class="progress risk-progress">
                     <div
-                        class="progress-bar bg-{{ $levelColors[$currencyLevel] }}"
+                        class="progress-bar bg-{{ $currencyColor }} js-progress-bar"
                         role="progressbar"
-                        style="width: {{ min(100, max(0, $currencyScore)) }}%"
+                        data-progress-width="{{ min(100, max(0, $currencyScore)) }}"
                     ></div>
                 </div>
             </article>
 
-            {{-- News Risk --}}
             <article class="risk-card">
                 <div class="risk-card-header">
                     <div>
@@ -288,13 +339,11 @@
                         </span>
 
                         <strong class="risk-card-score">
-                            {{ number_format($newsScore, 0) }}
+                            {{ number_format($newsScore, 0, ',', '.') }}
                         </strong>
 
-                        <span
-                            class="badge text-bg-{{ $levelColors[$newsLevel] }}"
-                        >
-                            {{ $levelLabels[$newsLevel] }}
+                        <span class="badge text-bg-{{ $newsColor }}">
+                            {{ $newsLabel }}
                         </span>
                     </div>
 
@@ -305,19 +354,15 @@
 
                 <div class="progress risk-progress">
                     <div
-                        class="progress-bar bg-{{ $levelColors[$newsLevel] }}"
+                        class="progress-bar bg-{{ $newsColor }} js-progress-bar"
                         role="progressbar"
-                        style="width: {{ min(100, max(0, $newsScore)) }}%"
+                        data-progress-width="{{ min(100, max(0, $newsScore)) }}"
                     ></div>
                 </div>
             </article>
         </section>
 
-        {{-- =====================================================
-             TOTAL RISK & COMPOSITION
-             ===================================================== --}}
-        <section class="risk-analysis-grid">
-
+        <section class="risk-analysis-grid mt-4">
             <article class="analysis-card total-risk-card">
                 <div class="analysis-card-header">
                     <div>
@@ -326,29 +371,33 @@
                         </span>
 
                         <strong class="total-risk-score">
-                            {{ number_format($totalScore, 2) }}
+                            {{ number_format($totalScore, 2, ',', '.') }}
                         </strong>
                     </div>
 
-                    <span
-                        class="badge text-bg-{{ $levelColors[$riskLevel] }} px-3 py-2"
-                    >
-                        {{ $levelLabels[$riskLevel] }}
+                    <span class="badge text-bg-{{ $riskColor }} px-3 py-2">
+                        {{ $riskLabel }}
                     </span>
                 </div>
 
                 <div class="progress total-risk-progress">
                     <div
-                        class="progress-bar bg-{{ $levelColors[$riskLevel] }}"
+                        class="progress-bar bg-{{ $riskColor }} js-progress-bar"
                         role="progressbar"
-                        style="width: {{ min(100, max(0, $totalScore)) }}%"
+                        data-progress-width="{{ min(100, max(0, $totalScore)) }}"
                     ></div>
                 </div>
 
-                <p class="analysis-description">
-                    Skor gabungan berdasarkan risiko cuaca, inflasi,
-                    mata uang, dan sentimen berita.
-                </p>
+                @if ($riskScoreAvailable)
+                    <small class="text-muted">
+                        Pembaruan:
+                        {{ $latestRiskScore->calculated_at?->format('d M Y H:i') ?? '-' }}
+                    </small>
+                @else
+                    <small class="text-muted">
+                        Belum tersimpan
+                    </small>
+                @endif
             </article>
 
             <article class="analysis-card">
@@ -356,23 +405,19 @@
                     <h3>
                         Komposisi Risiko
                     </h3>
-
-                    <p>
-                        Bobot setiap indikator dalam algoritma penilaian risiko.
-                    </p>
                 </div>
 
                 <div class="weight-list">
                     <div class="weight-item">
                         <div class="weight-label">
                             <span>Cuaca</span>
-                            <strong>25%</strong>
+                            <strong>30%</strong>
                         </div>
 
                         <div class="progress weight-progress">
                             <div
-                                class="progress-bar"
-                                style="width: 25%"
+                                class="progress-bar js-progress-bar"
+                                data-progress-width="30"
                             ></div>
                         </div>
                     </div>
@@ -380,13 +425,13 @@
                     <div class="weight-item">
                         <div class="weight-label">
                             <span>Inflasi</span>
-                            <strong>25%</strong>
+                            <strong>20%</strong>
                         </div>
 
                         <div class="progress weight-progress">
                             <div
-                                class="progress-bar"
-                                style="width: 25%"
+                                class="progress-bar js-progress-bar"
+                                data-progress-width="20"
                             ></div>
                         </div>
                     </div>
@@ -394,13 +439,13 @@
                     <div class="weight-item">
                         <div class="weight-label">
                             <span>Mata Uang</span>
-                            <strong>20%</strong>
+                            <strong>10%</strong>
                         </div>
 
                         <div class="progress weight-progress">
                             <div
-                                class="progress-bar"
-                                style="width: 20%"
+                                class="progress-bar js-progress-bar"
+                                data-progress-width="10"
                             ></div>
                         </div>
                     </div>
@@ -408,13 +453,13 @@
                     <div class="weight-item">
                         <div class="weight-label">
                             <span>Berita</span>
-                            <strong>30%</strong>
+                            <strong>40%</strong>
                         </div>
 
                         <div class="progress weight-progress">
                             <div
-                                class="progress-bar"
-                                style="width: 30%"
+                                class="progress-bar js-progress-bar"
+                                data-progress-width="40"
                             ></div>
                         </div>
                     </div>
@@ -422,10 +467,170 @@
             </article>
         </section>
 
-        {{-- =====================================================
-             ECONOMIC DATA
-             ===================================================== --}}
-        <section class="economic-section">
+        <section class="risk-analysis-grid mt-4">
+            <article class="analysis-card">
+                <div class="analysis-heading">
+                    <h3>
+                        Status Data Cuaca
+                    </h3>
+                </div>
+
+                <div class="country-overview-stats">
+                    <div class="country-stat">
+                        <span>Temperatur</span>
+
+                        <strong>
+                            @if ($weatherAvailable)
+                                {{ number_format($weatherData->temperature, 1, ',', '.') }}°C
+                            @else
+                                Belum tersedia
+                            @endif
+                        </strong>
+
+                        <small>
+                            Suhu saat ini
+                        </small>
+                    </div>
+
+                    <div class="country-stat">
+                        <span>Curah Hujan</span>
+
+                        <strong>
+                            @if ($weatherAvailable)
+                                {{ number_format($weatherData->precipitation, 2, ',', '.') }} mm
+                            @else
+                                Belum tersedia
+                            @endif
+                        </strong>
+
+                        <small>
+                            Presipitasi
+                        </small>
+                    </div>
+
+                    <div class="country-stat">
+                        <span>Kecepatan Angin</span>
+
+                        <strong>
+                            @if ($weatherAvailable)
+                                {{ number_format($weatherData->wind_speed, 1, ',', '.') }} km/jam
+                            @else
+                                Belum tersedia
+                            @endif
+                        </strong>
+
+                        <small>
+                            Angin 10 meter
+                        </small>
+                    </div>
+                </div>
+            </article>
+
+            <article class="analysis-card">
+                <div class="analysis-heading">
+                    <h3>
+                        Status Mata Uang dan Berita
+                    </h3>
+                </div>
+
+                <div class="country-overview-stats">
+                    <div class="country-stat">
+                        <span>Kurs USD</span>
+
+                        <strong>
+                            @if ($currencyAvailable)
+                                1 USD =
+                                {{ number_format($exchangeRate->rate, 4, ',', '.') }}
+                                {{ $exchangeRate->target_currency }}
+                            @else
+                                Belum tersedia
+                            @endif
+                        </strong>
+
+                        <small>
+                            Nilai tukar
+                        </small>
+                    </div>
+
+                    <div class="country-stat">
+                        <span>Artikel Berita</span>
+
+                        <strong>
+                            {{ number_format($newsSummary['total_articles'] ?? 0, 0, ',', '.') }}
+                        </strong>
+
+                        <small>
+                            Artikel
+                        </small>
+                    </div>
+
+                    <div class="country-stat">
+                        <span>Berita Negatif</span>
+
+                        <strong>
+                            {{ number_format($newsSummary['negative_count'] ?? 0, 0, ',', '.') }}
+                        </strong>
+
+                        <small>
+                            Risiko berita
+                        </small>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="risk-analysis-grid mt-4">
+            <article
+                class="analysis-card"
+                style="grid-column: 1 / -1;"
+            >
+                <div class="analysis-heading">
+                    <h3>
+                        Visualisasi Tinjauan Global
+                    </h3>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Komponen Risiko
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardRiskComponentChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Indikator Ekonomi
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardEconomicChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Risk Score Antarnegara
+                            </h5>
+
+                            <div style="height: 200px;">
+                                <canvas id="dashboardGlobalRiskChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="economic-section mt-4">
             <div class="section-heading">
                 <div class="page-eyebrow">
                     Indikator Ekonomi
@@ -434,16 +639,10 @@
                 <h2>
                     Data Ekonomi {{ $selectedCountry->name }}
                 </h2>
-
-                <p>
-                    Data ekonomi terbaru yang tersedia dari World Bank.
-                </p>
             </div>
 
             @if ($hasEconomicData)
                 <div class="economic-card-grid">
-
-                    {{-- GDP --}}
                     <article class="economic-card">
                         <div class="economic-card-main">
                             <div>
@@ -454,10 +653,7 @@
                                 <strong class="economic-card-value">
                                     @if ($economicData['gdp']['value'] !== null)
                                         US$
-                                        {{ number_format(
-                                            $economicData['gdp']['value'] / 1000000000000,
-                                            2
-                                        ) }}
+                                        {{ number_format($economicData['gdp']['value'] / 1000000000000, 2, ',', '.') }}
                                         T
                                     @else
                                         -
@@ -479,7 +675,6 @@
                         </div>
                     </article>
 
-                    {{-- Inflation --}}
                     <article class="economic-card">
                         <div class="economic-card-main">
                             <div>
@@ -489,10 +684,7 @@
 
                                 <strong class="economic-card-value">
                                     @if ($economicData['inflation']['value'] !== null)
-                                        {{ number_format(
-                                            $economicData['inflation']['value'],
-                                            2
-                                        ) }}%
+                                        {{ number_format($economicData['inflation']['value'], 2, ',', '.') }}%
                                     @else
                                         -
                                     @endif
@@ -513,7 +705,6 @@
                         </div>
                     </article>
 
-                    {{-- Exports --}}
                     <article class="economic-card">
                         <div class="economic-card-main">
                             <div>
@@ -524,10 +715,7 @@
                                 <strong class="economic-card-value">
                                     @if ($economicData['exports']['value'] !== null)
                                         US$
-                                        {{ number_format(
-                                            $economicData['exports']['value'] / 1000000000,
-                                            2
-                                        ) }}
+                                        {{ number_format($economicData['exports']['value'] / 1000000000, 2, ',', '.') }}
                                         B
                                     @else
                                         -
@@ -549,7 +737,6 @@
                         </div>
                     </article>
 
-                    {{-- Imports --}}
                     <article class="economic-card">
                         <div class="economic-card-main">
                             <div>
@@ -560,10 +747,7 @@
                                 <strong class="economic-card-value">
                                     @if ($economicData['imports']['value'] !== null)
                                         US$
-                                        {{ number_format(
-                                            $economicData['imports']['value'] / 1000000000,
-                                            2
-                                        ) }}
+                                        {{ number_format($economicData['imports']['value'] / 1000000000, 2, ',', '.') }}
                                         B
                                     @else
                                         -
@@ -585,24 +769,6 @@
                         </div>
                     </article>
                 </div>
-
-                <div class="data-source-card">
-                    <div>
-                        <h3>
-                            Sumber Data Ekonomi
-                        </h3>
-
-                        <p>
-                            Indikator ekonomi diambil dari World Bank
-                            dan disimpan pada database lokal.
-                        </p>
-                    </div>
-
-                    <span class="data-source-badge">
-                        <i class="bi bi-database"></i>
-                        World Bank
-                    </span>
-                </div>
             @else
                 <div class="economic-empty-state">
                     <i class="bi bi-exclamation-triangle"></i>
@@ -613,13 +779,171 @@
                         </h3>
 
                         <p>
-                            Data World Bank untuk
-                            {{ $selectedCountry->name }}
-                            belum tersimpan di database.
+                            Gunakan fitur Pemantau Negara untuk melakukan sinkronisasi data.
                         </p>
                     </div>
                 </div>
             @endif
         </section>
+
+        <section class="country-overview-card mt-4">
+            <div class="country-overview-main">
+                <div class="country-identity">
+                    <span class="country-overview-label">
+                        Aksi Lanjutan
+                    </span>
+
+                    <h2>
+                        Sinkronisasi Data Negara
+                    </h2>
+                </div>
+            </div>
+
+            <a
+                href="{{ route('countries.index', ['country' => $selectedCountry->iso3_code]) }}"
+                class="btn btn-primary mt-3"
+            >
+                <i class="bi bi-globe2 me-1"></i>
+                Buka Pemantau Negara
+            </a>
+        </section>
     </div>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script
+        id="dashboardChartData"
+        type="application/json"
+    >{!! json_encode($dashboardChartData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var progressBars = document.querySelectorAll('.js-progress-bar');
+
+            progressBars.forEach(function (progressBar) {
+                var width = progressBar.getAttribute('data-progress-width') || 0;
+
+                progressBar.style.width = width + '%';
+            });
+
+            if (typeof Chart === 'undefined') {
+                return;
+            }
+
+            var chartDataElement = document.getElementById('dashboardChartData');
+            var chartData = {};
+
+            try {
+                chartData = JSON.parse(chartDataElement.textContent || '{}');
+            } catch (error) {
+                chartData = {};
+            }
+
+            function getChartLabels(groupName) {
+                if (
+                    chartData[groupName] &&
+                    chartData[groupName].labels
+                ) {
+                    return chartData[groupName].labels;
+                }
+
+                return [];
+            }
+
+            function getChartValues(groupName) {
+                if (
+                    chartData[groupName] &&
+                    chartData[groupName].values
+                ) {
+                    return chartData[groupName].values;
+                }
+
+                return [];
+            }
+
+            function createBarChart(canvasId, label, labels, values) {
+                var canvas = document.getElementById(canvasId);
+
+                if (!canvas) {
+                    return;
+                }
+
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label,
+                                data: values,
+                                borderWidth: 1,
+                                borderRadius: 6,
+                                maxBarThickness: 32
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: {
+                            padding: 0
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    boxWidth: 12,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            createBarChart(
+                'dashboardRiskComponentChart',
+                'Komponen Risiko',
+                getChartLabels('riskComponents'),
+                getChartValues('riskComponents')
+            );
+
+            createBarChart(
+                'dashboardEconomicChart',
+                'Indikator Ekonomi',
+                getChartLabels('economic'),
+                getChartValues('economic')
+            );
+
+            createBarChart(
+                'dashboardGlobalRiskChart',
+                'Risk Score Negara',
+                getChartLabels('globalRisk'),
+                getChartValues('globalRisk')
+            );
+        });
+    </script>
+@endpush

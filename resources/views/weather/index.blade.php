@@ -3,491 +3,521 @@
 @section('title', 'Pemantau Cuaca')
 
 @section('content')
-@php
-    $weatherRisk = $weather ? (float) $weather->weather_risk : 0;
-    $weatherRiskWidth = min(100, max(0, $weatherRisk));
+    @php
+        $riskBadgeClass = match (true) {
+            ($weatherRisk ?? 0) >= 75 => 'bg-danger',
+            ($weatherRisk ?? 0) >= 50 => 'bg-warning text-dark',
+            ($weatherRisk ?? 0) >= 25 => 'bg-info text-dark',
+            default => 'bg-success',
+        };
+    @endphp
 
-    if ($weatherRisk <= 30) {
-        $riskLevel = 'Low Risk';
-        $riskBadgeClass = 'text-bg-success';
-    } elseif ($weatherRisk <= 60) {
-        $riskLevel = 'Medium Risk';
-        $riskBadgeClass = 'text-bg-warning';
-    } else {
-        $riskLevel = 'High Risk';
-        $riskBadgeClass = 'text-bg-danger';
-    }
-
-    $weatherChartHistory = $history->reverse()->values();
-
-    $weatherChartLabels = $weatherChartHistory
-        ->map(function ($item) {
-            return $item->recorded_at
-                ? $item->recorded_at->format('d M H:i')
-                : '';
-        })
-        ->toArray();
-
-    $temperatureData = $weatherChartHistory
-        ->map(function ($item) {
-            return (float) $item->temperature;
-        })
-        ->toArray();
-
-    $precipitationData = $weatherChartHistory
-        ->map(function ($item) {
-            return (float) $item->precipitation;
-        })
-        ->toArray();
-
-    $windData = $weatherChartHistory
-        ->map(function ($item) {
-            return (float) $item->wind_speed;
-        })
-        ->toArray();
-@endphp
-
-<link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<div class="dashboard-page">
-    <section class="dashboard-header">
-        <div class="dashboard-heading">
-            <div class="page-eyebrow">
-                Global Weather Monitoring
-            </div>
-
-            <h1 class="page-title">
-                Pemantau Cuaca
-            </h1>
-
-            <p class="page-description">
-                Pantau temperatur, curah hujan, kecepatan angin, dan risiko
-                cuaca ekstrem berdasarkan negara tujuan rantai pasok.
-            </p>
-        </div>
-
-        <form
-            method="GET"
-            action="{{ route('weather.index') }}"
-            class="country-selector"
-        >
-            <label for="country" class="country-selector-label">
-                Pilih Negara
-            </label>
-
-            <div class="country-selector-control">
-                <select
-                    name="country"
-                    id="country"
-                    class="form-select"
-                    onchange="this.form.submit()"
-                >
-                    @foreach ($countries as $country)
-                        <option
-                            value="{{ $country->iso3_code }}"
-                            {{ $selectedCountry->id === $country->id ? 'selected' : '' }}
-                        >
-                            {{ $country->name }} - {{ $country->iso3_code }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-        </form>
-    </section>
-
-    @if ($errorMessage)
-        <div class="alert alert-warning border-0 shadow-sm">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            {{ $errorMessage }}
-        </div>
-    @endif
-
-    <section class="country-overview-card">
-        <div class="country-overview-main">
-            <div class="country-flag">
-                @if ($selectedCountry->flag_url)
-                    <img
-                        src="{{ $selectedCountry->flag_url }}"
-                        alt="Bendera {{ $selectedCountry->name }}"
-                    >
-                @else
-                    <div class="country-flag-placeholder">
-                        <i class="bi bi-flag"></i>
-                    </div>
-                @endif
-            </div>
-
-            <div class="country-identity">
-                <span class="country-overview-label">
-                    Negara Dipantau
-                </span>
-
-                <h2>
-                    {{ $selectedCountry->name }}
-                </h2>
-
-                <p>
-                    Koordinat:
-                    {{ $selectedCountry->latitude }},
-                    {{ $selectedCountry->longitude }}
-                </p>
-            </div>
-        </div>
-
-        <div class="country-overview-stats">
-            <div class="country-stat">
-                <span>Temperatur</span>
-                <strong>
-                    {{ $weather ? number_format((float) $weather->temperature, 1, ',', '.') . '°C' : '-' }}
-                </strong>
-                <small>Suhu saat ini</small>
-            </div>
-
-            <div class="country-stat">
-                <span>Curah Hujan</span>
-                <strong>
-                    {{ $weather ? number_format((float) $weather->precipitation, 2, ',', '.') . ' mm' : '-' }}
-                </strong>
-                <small>Presipitasi</small>
-            </div>
-
-            <div class="country-stat">
-                <span>Kecepatan Angin</span>
-                <strong>
-                    {{ $weather ? number_format((float) $weather->wind_speed, 1, ',', '.') . ' km/jam' : '-' }}
-                </strong>
-                <small>Wind speed</small>
-            </div>
-
-            <div class="country-stat">
-                <span>Kode Cuaca</span>
-                <strong>
-                    {{ $weather ? $weather->weather_code : '-' }}
-                </strong>
-                <small>Open-Meteo code</small>
-            </div>
-        </div>
-    </section>
-
-    <section class="risk-analysis-grid">
-        <article class="analysis-card total-risk-card">
-            <div class="analysis-card-header">
-                <div>
-                    <span class="analysis-label">
-                        Risiko Cuaca
-                    </span>
-
-                    <strong class="total-risk-score">
-                        {{ number_format($weatherRisk, 2) }}
-                    </strong>
+    <div class="dashboard-page">
+        <section class="dashboard-header">
+            <div class="dashboard-heading">
+                <div class="page-eyebrow">
+                    GLOBAL WEATHER MONITORING
                 </div>
 
-                <span class="badge {{ $riskBadgeClass }} px-3 py-2">
-                    {{ $riskLevel }}
-                </span>
-            </div>
+                <h1 class="page-title">
+                    Pemantau Cuaca
+                </h1>
 
-            <div class="progress total-risk-progress">
-                <div
-                    id="weatherRiskProgress"
-                    class="progress-bar"
-                    role="progressbar"
-                    data-risk-width="{{ $weatherRiskWidth }}"
-                    aria-valuenow="{{ $weatherRisk }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                ></div>
-            </div>
-
-            <p class="analysis-description">
-                Risiko cuaca dihitung dari curah hujan, kecepatan angin, dan
-                kode kondisi cuaca. Semakin ekstrem indikatornya, semakin besar
-                potensi gangguan pengiriman.
-            </p>
-        </article>
-
-        <article class="analysis-card">
-            <div class="analysis-heading">
-                <h3>
-                    Grafik Riwayat Cuaca
-                </h3>
-
-                <p>
-                    Grafik menampilkan log data cuaca yang tersimpan pada tabel
-                    <strong>weather_data</strong>.
+                <p class="page-description">
+                    Pantau suhu, curah hujan, angin, dan risiko cuaca negara terpilih.
                 </p>
             </div>
 
-            <div
-                id="weatherChartData"
-                class="d-none"
-                data-labels='{{ json_encode($weatherChartLabels) }}'
-                data-temperature='{{ json_encode($temperatureData) }}'
-                data-precipitation='{{ json_encode($precipitationData) }}'
-                data-wind='{{ json_encode($windData) }}'
-            ></div>
+            <form
+                method="GET"
+                action="{{ route('weather.index') }}"
+                class="country-selector"
+            >
+                <label
+                    for="country"
+                    class="country-selector-label"
+                >
+                    Pilih Negara
+                </label>
 
-            <div class="mt-4">
-                <canvas id="weatherChart" height="120"></canvas>
+                <div class="country-selector-control">
+                    <select
+                        name="country"
+                        id="country"
+                        class="form-select"
+                        onchange="this.form.submit()"
+                    >
+                        @foreach ($countries as $country)
+                            <option
+                                value="{{ $country->iso3_code }}"
+                                @selected($selectedCountry->id === $country->id)
+                            >
+                                {{ $country->display_name ?? ($country->name . ' (' . $country->iso3_code . ')') }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <noscript>
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+                            Tampilkan
+                        </button>
+                    </noscript>
+                </div>
+            </form>
+        </section>
+
+        <section class="country-overview-card">
+            <div class="country-overview-main">
+                <div class="country-flag">
+                    @if ($selectedCountry->flag_url)
+                        <img
+                            src="{{ $selectedCountry->flag_url }}"
+                            alt="Bendera {{ $selectedCountry->name }}"
+                        >
+                    @else
+                        <div class="country-flag-placeholder">
+                            <i class="bi bi-flag"></i>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="country-identity">
+                    <span class="country-overview-label">
+                        Negara Dipantau
+                    </span>
+
+                    <h2>
+                        {{ $selectedCountry->name }}
+                    </h2>
+
+                    <p>
+                        {{ $selectedCountry->capital ?? '-' }}
+                        —
+                        {{ $selectedCountry->region ?? '-' }}
+                    </p>
+                </div>
             </div>
-        </article>
-    </section>
 
-    <section class="risk-analysis-grid">
-        <article class="analysis-card">
-            <div class="analysis-heading">
-                <h3>
-                    Peta Lokasi Cuaca
-                </h3>
+            <div class="country-overview-stats">
+                <div class="country-stat">
+                    <span>Temperatur</span>
 
-                <p>
-                    Titik peta menampilkan lokasi negara berdasarkan koordinat
-                    dari data negara.
+                    <strong>
+                        @if ($weatherAvailable)
+                            {{ number_format($temperature, 1, ',', '.') }}°C
+                        @else
+                            Belum tersedia
+                        @endif
+                    </strong>
+
+                    <small>
+                        Suhu saat ini
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Curah Hujan</span>
+
+                    <strong>
+                        @if ($weatherAvailable)
+                            {{ number_format($precipitation, 2, ',', '.') }} mm
+                        @else
+                            Belum tersedia
+                        @endif
+                    </strong>
+
+                    <small>
+                        Presipitasi
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Kecepatan Angin</span>
+
+                    <strong>
+                        @if ($weatherAvailable)
+                            {{ number_format($windSpeed, 1, ',', '.') }} km/jam
+                        @else
+                            Belum tersedia
+                        @endif
+                    </strong>
+
+                    <small>
+                        Angin 10 meter
+                    </small>
+                </div>
+
+                <div class="country-stat">
+                    <span>Pembaruan Terakhir</span>
+
+                    <strong>
+                        {{ $lastUpdate ?? 'Belum tersedia' }}
+                    </strong>
+
+                    <small>
+                        Open-Meteo API
+                    </small>
+                </div>
+            </div>
+        </section>
+
+        <section class="risk-analysis-grid mt-4">
+            <article class="analysis-card total-risk-card">
+                <div class="analysis-card-header">
+                    <div>
+                        <span class="analysis-label">
+                            Skor Risiko Cuaca
+                        </span>
+
+                        <strong class="total-risk-score">
+                            {{ number_format($weatherRisk ?? 0, 2, ',', '.') }}
+                        </strong>
+                    </div>
+
+                    <span class="badge {{ $riskBadgeClass }} px-3 py-2">
+                        {{ $riskLabel ?? 'Belum tersedia' }}
+                    </span>
+                </div>
+
+                <div class="progress total-risk-progress">
+                    <div
+                        class="progress-bar js-progress-bar"
+                        role="progressbar"
+                        data-progress-width="{{ min(100, max(0, $weatherRisk ?? 0)) }}"
+                    ></div>
+                </div>
+
+                <p class="analysis-description">
+                    Risiko cuaca dihitung dari kombinasi curah hujan, kecepatan angin,
+                    dan kode cuaca. Nilai ini membantu membaca potensi gangguan pengiriman.
                 </p>
-            </div>
+            </article>
 
-            <div
-                id="weatherMapData"
-                class="d-none"
-                data-lat="{{ $selectedCountry->latitude }}"
-                data-lng="{{ $selectedCountry->longitude }}"
-                data-country="{{ $selectedCountry->name }}"
-            ></div>
+            <article class="analysis-card">
+                <div class="analysis-heading">
+                    <h3>
+                        Status Open-Meteo API
+                    </h3>
 
-            <div
-                id="weatherMap"
-                class="rounded-4 mt-4"
-                style="width: 100%; height: 360px;"
-            ></div>
-        </article>
+                    <p>
+                        Status Cuaca
+                    </p>
+                </div>
 
-        <article class="analysis-card">
-            <div class="analysis-heading">
-                <h3>
-                    Detail Data Terbaru
-                </h3>
+                <div class="country-overview-stats">
+                    <div class="country-stat">
+                        <span>Kode Cuaca</span>
 
-                <p>
-                    Data cuaca diambil dari Open-Meteo API dan disimpan agar
-                    dapat digunakan untuk analisis tren.
-                </p>
-            </div>
+                        <strong>
+                            {{ $weatherCode ?? 0 }}
+                        </strong>
 
-            <div class="table-responsive mt-4">
-                <table class="table table-hover align-middle mb-0">
-                    <tbody>
-                        <tr>
-                            <th>Negara</th>
-                            <td>{{ $selectedCountry->name }}</td>
-                        </tr>
+                        <small>
+                            {{ $weatherDescription ?? 'Belum tersedia' }}
+                        </small>
+                    </div>
 
-                        <tr>
-                            <th>Temperatur</th>
-                            <td>
-                                {{ $weather ? number_format((float) $weather->temperature, 2, ',', '.') . ' °C' : '-' }}
-                            </td>
-                        </tr>
+                    <div class="country-stat">
+                        <span>Koordinat</span>
 
-                        <tr>
-                            <th>Curah Hujan</th>
-                            <td>
-                                {{ $weather ? number_format((float) $weather->precipitation, 2, ',', '.') . ' mm' : '-' }}
-                            </td>
-                        </tr>
+                        <strong>
+                            {{ $selectedCountry->latitude ?? '-' }},
+                            {{ $selectedCountry->longitude ?? '-' }}
+                        </strong>
 
-                        <tr>
-                            <th>Kecepatan Angin</th>
-                            <td>
-                                {{ $weather ? number_format((float) $weather->wind_speed, 2, ',', '.') . ' km/jam' : '-' }}
-                            </td>
-                        </tr>
+                        <small>
+                           Koordinat negara
+                        </small>
+                    </div>
 
-                        <tr>
-                            <th>Weather Risk</th>
-                            <td>
-                                {{ number_format($weatherRisk, 2) }} / 100
-                            </td>
-                        </tr>
+                    <div class="country-stat">
+                        <span>Jumlah Riwayat</span>
 
-                        <tr>
-                            <th>Waktu Data</th>
-                            <td>
-                                {{ $weather && $weather->recorded_at ? $weather->recorded_at->format('d M Y H:i') : '-' }}
-                            </td>
-                        </tr>
+                        <strong>
+                            {{ $history->count() }}
+                        </strong>
 
-                        <tr>
-                            <th>Diambil Pada</th>
-                            <td>
-                                {{ $weather && $weather->fetched_at ? $weather->fetched_at->format('d M Y H:i') : '-' }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </article>
-    </section>
+                        <small>
+                             Riwayat tersimpan
+                        </small>
+                    </div>
+                </div>
+            </article>
+        </section>
 
-    <section class="economic-section">
-        <div class="section-heading">
-            <div class="page-eyebrow">
-                Riwayat Cuaca
-            </div>
+        <section class="risk-analysis-grid mt-4">
+            <article
+                class="analysis-card"
+                style="grid-column: 1 / -1;"
+            >
+                <div class="analysis-heading">
+                    <h3>
+                        Grafik Pemantauan Cuaca
+                    </h3>
 
-            <h2>
-                Log Data Cuaca
-            </h2>
+                <div class="row g-4">
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Temperatur
+                            </h5>
 
-            <p>
-                Data ini digunakan untuk memantau perubahan kondisi cuaca dari
-                waktu ke waktu.
-            </p>
-        </div>
+                            <div style="height: 180px;">
+                                <canvas id="weatherTemperatureChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
 
-        <div class="analysis-card">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Waktu Data</th>
-                            <th>Temperatur</th>
-                            <th>Curah Hujan</th>
-                            <th>Angin</th>
-                            <th>Kode</th>
-                            <th>Risiko</th>
-                            <th>Diambil</th>
-                        </tr>
-                    </thead>
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Curah Hujan
+                            </h5>
 
-                    <tbody>
-                        @forelse ($history as $item)
+                            <div style="height: 180px;">
+                                <canvas id="weatherPrecipitationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Kecepatan Angin
+                            </h5>
+
+                            <div style="height: 180px;">
+                                <canvas id="weatherWindChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Grafik Risiko Cuaca
+                            </h5>
+
+                            <div style="height: 180px;">
+                                <canvas id="weatherRiskChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="risk-analysis-grid mt-4">
+            <article
+                class="analysis-card"
+                style="grid-column: 1 / -1;"
+            >
+                <div class="analysis-heading">
+                    <h3>
+                        Riwayat Cuaca Terakhir
+                    </h3>
+
+                    <p>
+                        Daftar data cuaca terbaru dari Open-Meteo untuk negara yang dipilih.
+                    </p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
                             <tr>
-                                <td>
-                                    {{ $item->recorded_at ? $item->recorded_at->format('d M Y H:i') : '-' }}
-                                </td>
-
-                                <td>
-                                    {{ number_format((float) $item->temperature, 2, ',', '.') }} °C
-                                </td>
-
-                                <td>
-                                    {{ number_format((float) $item->precipitation, 2, ',', '.') }} mm
-                                </td>
-
-                                <td>
-                                    {{ number_format((float) $item->wind_speed, 2, ',', '.') }} km/jam
-                                </td>
-
-                                <td>
-                                    {{ $item->weather_code }}
-                                </td>
-
-                                <td>
-                                    {{ number_format((float) $item->weather_risk, 2) }}
-                                </td>
-
-                                <td>
-                                    {{ $item->fetched_at ? $item->fetched_at->format('d M Y H:i') : '-' }}
-                                </td>
+                                <th>Waktu</th>
+                                <th>Temperatur</th>
+                                <th>Curah Hujan</th>
+                                <th>Angin</th>
+                                <th>Kode Cuaca</th>
+                                <th>Risiko</th>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
-                                    Data cuaca belum tersedia.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                        </thead>
+
+                        <tbody>
+                            @forelse ($history as $item)
+                                <tr>
+                                    <td>
+                                        {{ $item->recorded_at?->format('d M Y H:i') ?? '-' }}
+                                    </td>
+
+                                    <td>
+                                        {{ number_format((float) $item->temperature, 1, ',', '.') }}°C
+                                    </td>
+
+                                    <td>
+                                        {{ number_format((float) $item->precipitation, 2, ',', '.') }} mm
+                                    </td>
+
+                                    <td>
+                                        {{ number_format((float) $item->wind_speed, 1, ',', '.') }} km/jam
+                                    </td>
+
+                                    <td>
+                                        {{ $item->weather_code }}
+                                    </td>
+
+                                    <td>
+                                        {{ number_format((float) $item->weather_risk, 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td
+                                        colspan="6"
+                                        class="text-center text-muted py-4"
+                                    >
+                                        Data cuaca belum tersedia.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
+        <section class="country-overview-card mt-4">
+            <div class="country-overview-main">
+                <div class="country-identity">
+                    <span class="country-overview-label">
+                        API Pemantau Cuaca
+                    </span>
+
+                    <h2>
+                        Endpoint JSON Weather
+                    </h2>
+
+                </div>
             </div>
-        </div>
-    </section>
-</div>
+
+            <a
+                href="{{ route('api.weather.show', ['country' => $selectedCountry->iso3_code]) }}"
+                target="_blank"
+                class="btn btn-outline-primary mt-3"
+            >
+                <i class="bi bi-code-slash me-1"></i>
+                Lihat JSON API
+            </a>
+        </section>
+    </div>
 @endsection
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script
+        id="weatherChartData"
+        type="application/json"
+    >{!! json_encode($chartData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 
     <script>
-        const weatherRiskProgress = document.getElementById('weatherRiskProgress');
+        document.addEventListener('DOMContentLoaded', function () {
+            var progressBars = document.querySelectorAll('.js-progress-bar');
 
-        if (weatherRiskProgress) {
-            const riskWidth = Number(weatherRiskProgress.dataset.riskWidth || 0);
-            weatherRiskProgress.style.width = `${riskWidth}%`;
-        }
+            progressBars.forEach(function (progressBar) {
+                var width = progressBar.getAttribute('data-progress-width') || 0;
 
-        const weatherChartElement = document.getElementById('weatherChart');
-        const weatherChartData = document.getElementById('weatherChartData');
-
-        if (weatherChartElement && weatherChartData) {
-            const labels = JSON.parse(weatherChartData.dataset.labels || '[]');
-            const temperature = JSON.parse(weatherChartData.dataset.temperature || '[]');
-            const precipitation = JSON.parse(weatherChartData.dataset.precipitation || '[]');
-            const wind = JSON.parse(weatherChartData.dataset.wind || '[]');
-
-            new Chart(weatherChartElement, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Temperatur (°C)',
-                            data: temperature,
-                            tension: 0.35,
-                            fill: false,
-                        },
-                        {
-                            label: 'Curah Hujan (mm)',
-                            data: precipitation,
-                            tension: 0.35,
-                            fill: false,
-                        },
-                        {
-                            label: 'Angin (km/jam)',
-                            data: wind,
-                            tension: 0.35,
-                            fill: false,
-                        },
-                    ],
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: true,
-                        },
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                        },
-                    },
-                },
+                progressBar.style.width = width + '%';
             });
-        }
 
-        const weatherMapElement = document.getElementById('weatherMap');
-        const weatherMapData = document.getElementById('weatherMapData');
+            if (typeof Chart === 'undefined') {
+                return;
+            }
 
-        if (weatherMapElement && weatherMapData && typeof L !== 'undefined') {
-            const latitude = Number(weatherMapData.dataset.lat || 0);
-            const longitude = Number(weatherMapData.dataset.lng || 0);
-            const countryName = weatherMapData.dataset.country || 'Selected Country';
+            var chartDataElement = document.getElementById('weatherChartData');
+            var chartData = {};
 
-            const map = L.map('weatherMap').setView([latitude, longitude], 4);
+            try {
+                chartData = JSON.parse(chartDataElement.textContent || '{}');
+            } catch (error) {
+                chartData = {};
+            }
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors',
-            }).addTo(map);
+            function getChartLabels(groupName) {
+                if (
+                    chartData[groupName] &&
+                    chartData[groupName].labels
+                ) {
+                    return chartData[groupName].labels;
+                }
 
-            L.marker([latitude, longitude])
-                .addTo(map)
-                .bindPopup(countryName)
-                .openPopup();
-        }
+                return [];
+            }
+
+            function getChartValues(groupName) {
+                if (
+                    chartData[groupName] &&
+                    chartData[groupName].values
+                ) {
+                    return chartData[groupName].values;
+                }
+
+                return [];
+            }
+
+            function createBarChart(canvasId, label, labels, values) {
+                var canvas = document.getElementById(canvasId);
+
+                if (!canvas) {
+                    return;
+                }
+
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label,
+                                data: values,
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            createBarChart(
+                'weatherTemperatureChart',
+                'Temperatur',
+                getChartLabels('temperature'),
+                getChartValues('temperature')
+            );
+
+            createBarChart(
+                'weatherPrecipitationChart',
+                'Curah Hujan',
+                getChartLabels('precipitation'),
+                getChartValues('precipitation')
+            );
+
+            createBarChart(
+                'weatherWindChart',
+                'Kecepatan Angin',
+                getChartLabels('wind'),
+                getChartValues('wind')
+            );
+
+            createBarChart(
+                'weatherRiskChart',
+                'Risiko Cuaca',
+                getChartLabels('risk'),
+                getChartValues('risk')
+            );
+        });
     </script>
 @endpush

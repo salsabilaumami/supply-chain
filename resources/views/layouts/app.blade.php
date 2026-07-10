@@ -16,6 +16,8 @@
         'resources/css/app.css',
         'resources/js/app.js'
     ])
+
+    @stack('styles')
 </head>
 
 <body>
@@ -110,9 +112,8 @@
                 </div>
 
                 <a
-                    href="#"
-                    class="sidebar-link"
-                    title="Fitur ini akan dibuat pada tahap berikutnya"
+                    href="{{ route('ports.index') }}"
+                    class="sidebar-link {{ request()->routeIs('ports.*') ? 'active' : '' }}"
                 >
                     <i class="bi bi-geo-alt"></i>
 
@@ -122,9 +123,8 @@
                 </a>
 
                 <a
-                    href="#"
-                    class="sidebar-link"
-                    title="Fitur ini akan dibuat pada tahap berikutnya"
+                    href="{{ route('comparison.index') }}"
+                    class="sidebar-link {{ request()->routeIs('comparison.*') ? 'active' : '' }}"
                 >
                     <i class="bi bi-arrow-left-right"></i>
 
@@ -133,17 +133,30 @@
                     </span>
                 </a>
 
-                <a
-                    href="#"
-                    class="sidebar-link"
-                    title="Fitur ini akan dibuat pada tahap berikutnya"
-                >
-                    <i class="bi bi-bookmark-star"></i>
+                @if (\Illuminate\Support\Facades\Route::has('watchlist.index'))
+                    <a
+                        href="{{ route('watchlist.index') }}"
+                        class="sidebar-link {{ request()->routeIs('watchlist.*') ? 'active' : '' }}"
+                    >
+                        <i class="bi bi-bookmark-star"></i>
 
-                    <span>
-                        Daftar Pemantauan
-                    </span>
-                </a>
+                        <span>
+                            Daftar Pemantauan
+                        </span>
+                    </a>
+                @else
+                    <a
+                        href="#"
+                        class="sidebar-link"
+                        title="Route watchlist.index belum terdaftar di routes/web.php"
+                    >
+                        <i class="bi bi-bookmark-star"></i>
+
+                        <span>
+                            Daftar Pemantauan
+                        </span>
+                    </a>
+                @endif
 
                 @if (auth()->user()?->isAdmin())
                     <div class="nav-section">

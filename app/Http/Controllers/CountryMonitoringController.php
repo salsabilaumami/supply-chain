@@ -711,10 +711,13 @@ class CountryMonitoringController extends Controller
             'items' => $newsItems
                 ->map(function (NewsCache $news) {
                     return [
+                        'id' => $news->id,
                         'title' => $news->title,
                         'description' => $news->description,
                         'url' => $news->url,
+                        'image_url' => $news->image_url ?? null,
                         'source_name' => $news->source_name,
+                        'author' => $news->author ?? null,
                         'published_at' => $news->published_at?->format('d M Y H:i'),
                         'sentiment' => $news->sentiment?->sentiment ?? 'neutral',
                         'sentiment_label' => $this->sentimentLabel(
@@ -722,6 +725,7 @@ class CountryMonitoringController extends Controller
                         ),
                         'positive_score' => $news->sentiment?->positive_score ?? 0,
                         'negative_score' => $news->sentiment?->negative_score ?? 0,
+                        'neutral_score' => $news->sentiment?->neutral_score ?? 0,
                         'risk_score' => $news->sentiment
                             ? (float) $news->sentiment->risk_score
                             : 50.0,

@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\ComparisonController;
 use App\Http\Controllers\CountryMonitoringController;
 use App\Http\Controllers\CurrencyController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\PortController;
+use App\Http\Controllers\WatchlistController;
 use App\Http\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,8 +26,11 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])
+    Route::get('/', 'App\Http\Controllers\DashboardController@index')
         ->name('dashboard');
+
+    Route::get('/api/dashboard', 'App\Http\Controllers\DashboardController@show')
+        ->name('api.dashboard.show');
 
     Route::get('/countries', [CountryMonitoringController::class, 'index'])
         ->name('countries.index');
@@ -68,6 +73,24 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/api/news', [NewsController::class, 'show'])
         ->name('api.news.show');
+
+    Route::get('/ports', [PortController::class, 'index'])
+        ->name('ports.index');
+
+    Route::get('/api/ports', [PortController::class, 'show'])
+        ->name('api.ports.show');
+
+    Route::get('/comparison', [ComparisonController::class, 'index'])
+        ->name('comparison.index');
+
+    Route::get('/api/comparison', [ComparisonController::class, 'show'])
+        ->name('api.comparison.show');
+
+    Route::get('/watchlist', [WatchlistController::class, 'index'])
+        ->name('watchlist.index');
+
+    Route::get('/api/watchlist', [WatchlistController::class, 'show'])
+        ->name('api.watchlist.show');
 
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
