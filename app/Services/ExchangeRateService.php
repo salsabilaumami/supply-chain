@@ -61,12 +61,22 @@ class ExchangeRateService
         string $baseCurrency,
         string $targetCurrency
     ): ExchangeRate {
+        $baseUrl = rtrim((string) config('services.exchange_rate.base_url'), '/');
+        $apiKey = config('services.exchange_rate.api_key');
+
+        if (empty($baseUrl)) {
+            throw new RuntimeException('EXCHANGE_RATE_BASE_URL belum tersedia di .env.');
+        }
+
+        if (empty($apiKey)) {
+            throw new RuntimeException('EXCHANGE_RATE_API_KEY belum tersedia di .env.');
+        }
+
         $response = Http::acceptJson()
             ->timeout(20)
             ->retry(3, 700)
             ->get(
-                rtrim(config('services.exchange_rate.base_url'), '/') .
-                '/latest/' . $baseCurrency
+                $baseUrl . '/' . $apiKey . '/latest/' . $baseCurrency
             );
 
         if ($response->failed()) {
@@ -79,10 +89,13 @@ class ExchangeRateService
         $payload = $response->json();
 
         if (($payload['result'] ?? null) !== 'success') {
-            throw new RuntimeException('Respons API kurs tidak berhasil.');
+            throw new RuntimeException(
+                'Respons API kurs tidak berhasil. Pesan: ' .
+                ($payload['error-type'] ?? 'Tidak diketahui')
+            );
         }
 
-        $rates = $payload['rates'] ?? [];
+        $rates = $payload['conversion_rates'] ?? $payload['rates'] ?? [];
 
         if (!array_key_exists($targetCurrency, $rates)) {
             throw new RuntimeException(
@@ -197,6 +210,10 @@ class ExchangeRateService
             return Carbon::createFromTimestamp(
                 (int) $payload['time_last_update_unix']
             );
+        }
+
+        if (!empty($payload['time_last_update_utc'])) {
+            return Carbon::parse($payload['time_last_update_utc']);
         }
 
         return now();

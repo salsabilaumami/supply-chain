@@ -2,17 +2,7 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Third Party Services
-    |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
-    */
+   
 
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
@@ -35,9 +25,17 @@ return [
         ],
     ],
 
+   
+
     'rest_countries' => [
+        'base_url' => env(
+            'REST_COUNTRIES_BASE_URL',
+            'https://api.restcountries.com/countries/v5'
+        ),
         'key' => env('REST_COUNTRIES_API_KEY'),
     ],
+
+    
 
     'open_meteo' => [
         'base_url' => env(
@@ -46,12 +44,26 @@ return [
         ),
     ],
 
+    
+
+    'world_bank' => [
+        'base_url' => env(
+            'WORLD_BANK_BASE_URL',
+            'https://api.worldbank.org/v2'
+        ),
+    ],
+
+   
+
     'exchange_rate' => [
         'base_url' => env(
             'EXCHANGE_RATE_BASE_URL',
-            'https://open.er-api.com/v6'
+            'https://v6.exchangerate-api.com/v6'
         ),
+        'api_key' => env('EXCHANGE_RATE_API_KEY'),
     ],
+
+    
 
     'gnews' => [
         'base_url' => env(
@@ -59,6 +71,25 @@ return [
             'https://gnews.io/api/v4'
         ),
         'api_key' => env('GNEWS_API_KEY'),
+    ],
+
+    
+
+    'overpass' => [
+        'endpoints' => [
+            env('OVERPASS_ENDPOINT_1', 'https://overpass.kumi.systems/api/interpreter'),
+            env('OVERPASS_ENDPOINT_2', 'https://overpass-api.de/api/interpreter'),
+            env('OVERPASS_ENDPOINT_3', 'https://overpass.openstreetmap.fr/api/interpreter'),
+        ],
+    ],
+
+   
+
+    'world_port_index' => [
+        'dataset_path' => env(
+            'WORLD_PORT_INDEX_DATASET_PATH',
+            storage_path('app/datasets/world_port_index.csv')
+        ),
     ],
 
 ];

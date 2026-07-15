@@ -26,8 +26,8 @@
                 </h1>
 
                 <p>
-                    Pantau berita ekonomi, logistik, perdagangan, ekspor, impor,
-                    dan rantai pasok berdasarkan negara yang dipilih.
+                    Pantau berita ekonomi, logistik, perdagangan, dan rantai pasok
+                    berdasarkan negara yang dipilih.
                 </p>
             </div>
 
@@ -78,39 +78,69 @@
         @if ($apiError)
             <div class="alert alert-warning border-0 shadow-sm mb-0">
                 <i class="bi bi-info-circle me-2"></i>
-                Detail: {{ $apiError }}
+                Data berita belum dapat diperbarui saat ini. Sistem menampilkan data tersimpan.
             </div>
         @endif
 
         <section class="news-summary-grid">
             <article class="news-stat-card">
                 <span>Total Artikel</span>
-                <strong>{{ number_format($summary['total_articles'] ?? 0, 0, ',', '.') }}</strong>
-                <small>Artikel tersimpan</small>
+
+                <strong>
+                    {{ number_format($summary['total_articles'] ?? 0, 0, ',', '.') }}
+                </strong>
+
+                <small>
+                    Artikel tersimpan
+                </small>
             </article>
 
             <article class="news-stat-card">
                 <span>Risk Rata-rata</span>
-                <strong>{{ number_format($summary['average_risk_score'] ?? 0, 2, ',', '.') }}</strong>
-                <small>Skala 0–100</small>
+
+                <strong>
+                    {{ number_format($summary['average_risk_score'] ?? 0, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Skor risiko
+                </small>
             </article>
 
             <article class="news-stat-card">
                 <span>Positif</span>
-                <strong>{{ number_format($summary['positive_count'] ?? 0, 0, ',', '.') }}</strong>
-                <small>Sentimen positif</small>
+
+                <strong>
+                    {{ number_format($summary['positive_count'] ?? 0, 0, ',', '.') }}
+                </strong>
+
+                <small>
+                    Sentimen positif
+                </small>
             </article>
 
             <article class="news-stat-card">
                 <span>Netral</span>
-                <strong>{{ number_format($summary['neutral_count'] ?? 0, 0, ',', '.') }}</strong>
-                <small>Sentimen netral</small>
+
+                <strong>
+                    {{ number_format($summary['neutral_count'] ?? 0, 0, ',', '.') }}
+                </strong>
+
+                <small>
+                    Sentimen netral
+                </small>
             </article>
 
             <article class="news-stat-card">
                 <span>Negatif</span>
-                <strong>{{ number_format($summary['negative_count'] ?? 0, 0, ',', '.') }}</strong>
-                <small>Sentimen negatif</small>
+
+                <strong>
+                    {{ number_format($summary['negative_count'] ?? 0, 0, ',', '.') }}
+                </strong>
+
+                <small>
+                    Sentimen negatif
+                </small>
             </article>
 
             <article class="news-stat-card">
@@ -122,7 +152,9 @@
                     </span>
                 </strong>
 
-                <small>Rata-rata berita</small>
+                <small>
+                    Rata-rata berita
+                </small>
             </article>
         </section>
 
@@ -134,7 +166,7 @@
                     </h2>
 
                     <p>
-                        Ringkasan artikel berdasarkan hasil analisis sentimen.
+                        Ringkasan sentimen artikel.
                     </p>
                 </div>
 
@@ -176,15 +208,6 @@
                         </span>
                     </div>
                 </div>
-
-                <a
-                    href="{{ route('api.news.show', ['country' => $selectedCountry?->iso3_code]) }}"
-                    target="_blank"
-                    class="btn btn-outline-primary w-100 mt-3"
-                >
-                    <i class="bi bi-code-slash me-1"></i>
-                    JSON API
-                </a>
             </article>
         </section>
 
@@ -195,8 +218,7 @@
                 </h2>
 
                 <p>
-                    Artikel ditampilkan lebih ringkas dengan gambar, sumber, tanggal,
-                    sentimen, skor risiko, dan tombol buka berita.
+                    Artikel terbaru beserta sentimen dan skor risiko.
                 </p>
             </div>
 
@@ -254,7 +276,7 @@
 
                             @if (!empty($news['description']))
                                 <p>
-                                    {{ \Illuminate\Support\Str::limit($news['description'], 190) }}
+                                    {{ \Illuminate\Support\Str::limit($news['description'], 170) }}
                                 </p>
                             @endif
                         </div>
@@ -266,7 +288,10 @@
 
                             <div class="news-risk">
                                 <span>Risk</span>
-                                <strong>{{ number_format((float) ($news['risk_score'] ?? 0), 2, ',', '.') }}</strong>
+
+                                <strong>
+                                    {{ number_format((float) ($news['risk_score'] ?? 0), 2, ',', '.') }}
+                                </strong>
                             </div>
 
                             @if (!empty($news['url']))
@@ -284,8 +309,8 @@
                 @empty
                     <div class="alert alert-warning border-0 shadow-sm mb-0">
                         <i class="bi bi-info-circle me-2"></i>
-                        Berita belum tersedia. Sistem akan mencoba mengambil data otomatis,
-                        atau klik tombol <strong>Perbarui</strong>.
+                        Berita belum tersedia. Klik tombol
+                        <strong>Perbarui</strong>.
                     </div>
                 @endforelse
             </div>
@@ -356,14 +381,6 @@
             height: 44px;
             border-radius: 12px;
             font-weight: 750;
-        }
-
-        .news-filter small {
-            display: block;
-            margin-top: 8px;
-            color: #7c8aa5;
-            font-size: 0.78rem;
-            line-height: 1.45;
         }
 
         .news-summary-grid {

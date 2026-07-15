@@ -45,8 +45,7 @@
                 </h1>
 
                 <p class="page-description">
-                    Pantau risiko ekonomi, cuaca, mata uang, berita, dan skor risiko
-                    pada rantai pasokan global.
+                    Pantau ekonomi, cuaca, kurs, berita, dan Risk Score negara terpilih.
                 </p>
             </div>
 
@@ -99,7 +98,7 @@
                     </span>
 
                     <h2>
-                        Status Monitoring Rantai Pasok
+                        Status Monitoring Global
                     </h2>
                 </div>
             </div>
@@ -172,7 +171,7 @@
 
                 <div class="country-identity">
                     <span class="country-overview-label">
-                        Negara yang Dipantau
+                        Negara Dipantau
                     </span>
 
                     <h2>
@@ -194,7 +193,7 @@
                     </strong>
 
                     <small>
-                        Pusat pemerintahan
+                        Pusat negara
                     </small>
                 </div>
 
@@ -779,7 +778,7 @@
                         </h3>
 
                         <p>
-                            Gunakan fitur Pemantau Negara untuk melakukan sinkronisasi data.
+                            Buka Pemantau Negara untuk sinkronisasi data.
                         </p>
                     </div>
                 </div>

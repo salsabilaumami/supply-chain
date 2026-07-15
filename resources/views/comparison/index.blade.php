@@ -114,8 +114,8 @@
                 </h1>
 
                 <p>
-                    Bandingkan risiko, cuaca, kurs, berita, indikator ekonomi, dan skor
-                    operasional antarnegara dalam satu tampilan ringkas.
+                    Bandingkan Risk Score, cuaca, kurs, inflasi, dan berita
+                    dari dua negara terpilih.
                 </p>
             </div>
 
@@ -248,7 +248,7 @@
                 </h2>
 
                 <p>
-                    Perbandingan komponen risiko utama berdasarkan negara yang dipilih.
+                    Perbandingan komponen risiko utama negara terpilih.
                 </p>
             </div>
 
@@ -302,31 +302,6 @@
                 </table>
             </div>
         </section>
-
-        <section class="comparison-api-card">
-            <div>
-                <span>
-                    API Perbandingan Negara
-                </span>
-
-                <h2>
-                    Endpoint JSON Comparison
-                </h2>
-
-                <p>
-                    Lihat data perbandingan dua negara dalam format JSON.
-                </p>
-            </div>
-
-            <a
-                href="{{ route('api.comparison.show', ['country_a' => $countryAIso, 'country_b' => $countryBIso]) }}"
-                target="_blank"
-                class="btn btn-outline-primary"
-            >
-                <i class="bi bi-code-slash me-1"></i>
-                Lihat JSON API
-            </a>
-        </section>
     </div>
 @endsection
 
@@ -345,8 +320,7 @@
         .comparison-top-card,
         .comparison-result-card,
         .comparison-chart-card,
-        .comparison-detail-card,
-        .comparison-api-card {
+        .comparison-detail-card {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 18px;
@@ -547,41 +521,6 @@
             font-size: 0.9rem;
         }
 
-        .comparison-api-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 18px;
-            padding: 22px 24px;
-        }
-
-        .comparison-api-card span {
-            display: block;
-            color: #7c8aa5;
-            font-size: 0.9rem;
-            font-weight: 800;
-            margin-bottom: 6px;
-        }
-
-        .comparison-api-card h2 {
-            margin: 0 0 6px;
-            color: #111827;
-            font-size: 1.25rem;
-            font-weight: 900;
-        }
-
-        .comparison-api-card p {
-            margin: 0;
-            color: #7c8aa5;
-            font-size: 0.92rem;
-            line-height: 1.5;
-        }
-
-        .comparison-api-card .btn {
-            flex: 0 0 auto;
-            white-space: nowrap;
-        }
-
         @media (max-width: 1280px) {
             .comparison-top-card {
                 grid-template-columns: 1fr;
@@ -612,15 +551,6 @@
             }
 
             .comparison-result-card b {
-                width: 100%;
-            }
-
-            .comparison-api-card {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .comparison-api-card .btn {
                 width: 100%;
             }
         }

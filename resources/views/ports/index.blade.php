@@ -47,9 +47,8 @@
                 </h1>
 
                 <p class="page-description">
-                    Pantau pelabuhan internasional/utama berdasarkan negara secara real-time
-                    melalui OpenStreetMap Overpass API, lengkap dengan peta interaktif,
-                    koordinat lokasi, dan skor risiko estimasi.
+                    Pantau lokasi pelabuhan utama, koordinat, peta interaktif,
+                    dan risiko estimasi negara terpilih.
                 </p>
             </div>
 
@@ -119,10 +118,7 @@
                     </h2>
 
                     <p>
-                        Sumber data:
-                        <strong>
-                            {{ $source }}
-                        </strong>
+                        Pelabuhan utama dan lokasi logistik negara terpilih.
                     </p>
                 </div>
             </div>
@@ -141,14 +137,14 @@
                 </div>
 
                 <div class="country-stat">
-                    <span>Status API</span>
+                    <span>Status Data</span>
 
                     <strong>
-                        {{ $apiAvailable ? 'Real-time' : 'Fallback' }}
+                        {{ $apiAvailable ? 'Terkini' : 'Tersimpan' }}
                     </strong>
 
                     <small>
-                        {{ $apiAvailable ? 'Overpass API aktif' : 'Memakai database lokal' }}
+                        {{ $apiAvailable ? 'Data terbaru' : 'Data cadangan' }}
                     </small>
                 </div>
 
@@ -160,7 +156,7 @@
                     </strong>
 
                     <small>
-                        Skala 0 sampai 100
+                        Skor risiko
                     </small>
                 </div>
 
@@ -182,8 +178,7 @@
             <section class="mt-4">
                 <div class="alert alert-warning border-0 shadow-sm">
                     <i class="bi bi-info-circle me-2"></i>
-                    Overpass API belum berhasil memuat data, sehingga sistem memakai database lokal.
-                    Detail: {{ $apiError }}
+                    Data terbaru belum dapat dimuat. Sistem menampilkan data tersimpan.
                 </div>
             </section>
         @endif
@@ -192,7 +187,7 @@
             <section class="mt-4">
                 <div class="alert alert-warning border-0 shadow-sm">
                     <i class="bi bi-info-circle me-2"></i>
-                    Data pelabuhan untuk negara ini belum tersedia dari API maupun database.
+                    Data pelabuhan untuk negara ini belum tersedia.
                 </div>
             </section>
         @endif
@@ -228,7 +223,7 @@
                         </strong>
 
                         <small>
-                            Kode / OSM ID
+                            Kode pelabuhan
                         </small>
                     </div>
 
@@ -277,15 +272,14 @@
                     </h3>
 
                     <p>
-                        Peta menggunakan Leaflet dan OpenStreetMap. Marker menampilkan
-                        seluruh pelabuhan yang ditemukan dari Overpass API atau database fallback.
+                        Marker menampilkan lokasi pelabuhan negara terpilih.
                     </p>
                 </div>
 
                 <div
                     id="portsMap"
                     class="border rounded-4 overflow-hidden"
-                    style="height: 360px; width: 100%;"
+                    style="height: 300px; width: 100%;"
                 ></div>
             </article>
         </section>
@@ -301,11 +295,11 @@
                     </h3>
 
                     <p>
-                        Visualisasi perbandingan skor risiko estimasi semua pelabuhan yang ditemukan.
+                        Perbandingan skor risiko pelabuhan.
                     </p>
                 </div>
 
-                <div style="height: 230px;">
+                <div style="height: 180px;">
                     <canvas id="portRiskChart"></canvas>
                 </div>
             </article>
@@ -318,12 +312,11 @@
             >
                 <div class="analysis-heading">
                     <h3>
-                        Daftar Pelabuhan Internasional/Utama
+                        Daftar Pelabuhan Utama
                     </h3>
 
                     <p>
-                        Data diambil dari OpenStreetMap Overpass API secara real-time.
-                        Jika API gagal, sistem memakai data database sebagai cadangan.
+                        Ringkasan pelabuhan, koordinat, sumber, dan risiko estimasi.
                     </p>
                 </div>
 
@@ -346,8 +339,12 @@
                             @forelse ($ports as $port)
                                 <tr>
                                     <td>
-                                        <strong>{{ $port['name'] ?? '-' }}</strong>
+                                        <strong>
+                                            {{ $port['name'] ?? '-' }}
+                                        </strong>
+
                                         <br>
+
                                         <small class="text-muted">
                                             {{ $port['code'] ?? '-' }}
                                         </small>
@@ -403,34 +400,6 @@
                     </table>
                 </div>
             </article>
-        </section>
-
-        <section class="country-overview-card mt-4">
-            <div class="country-overview-main">
-                <div class="country-identity">
-                    <span class="country-overview-label">
-                        API Pelabuhan Global
-                    </span>
-
-                    <h2>
-                        Endpoint JSON Ports
-                    </h2>
-
-                    <p>
-                        Endpoint internal untuk membaca data pelabuhan dari Overpass API,
-                        koordinat, marker peta, status sumber data, dan grafik risiko.
-                    </p>
-                </div>
-            </div>
-
-            <a
-                href="{{ route('api.ports.show', ['country' => $selectedCountry?->iso3_code]) }}"
-                target="_blank"
-                class="btn btn-outline-primary mt-3"
-            >
-                <i class="bi bi-code-slash me-1"></i>
-                Lihat JSON API
-            </a>
         </section>
     </div>
 @endsection
@@ -566,16 +535,62 @@
                         {
                             label: 'Risk Score Pelabuhan',
                             data: chartData.risk ? chartData.risk.values : [],
-                            borderWidth: 1
+                            borderWidth: 1,
+                            borderRadius: 6,
+                            maxBarThickness: 30
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 6,
+                            right: 6,
+                            bottom: 0,
+                            left: 0
+                        }
+                    },
                     scales: {
+                        x: {
+                            ticks: {
+                                autoSkip: true,
+                                maxRotation: 35,
+                                minRotation: 0,
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return 'Risk Score: ' + context.parsed.y;
+                                }
+                            }
                         }
                     }
                 }

@@ -141,7 +141,7 @@
                         <i class="bi bi-bookmark-star"></i>
 
                         <span>
-                            Daftar Pemantauan
+                            Favorit Pemantauan
                         </span>
                     </a>
                 @else
@@ -153,7 +153,7 @@
                         <i class="bi bi-bookmark-star"></i>
 
                         <span>
-                            Daftar Pemantauan
+                            Favorit Pemantauan
                         </span>
                     </a>
                 @endif
@@ -258,6 +258,17 @@
                             <i class="bi bi-check-circle me-2"></i>
 
                             {{ session('success') }}
+                        </div>
+                    @endif
+
+                    @if (session('error'))
+                        <div
+                            class="alert alert-danger border-0 shadow-sm mb-4"
+                            role="alert"
+                        >
+                            <i class="bi bi-exclamation-circle me-2"></i>
+
+                            {{ session('error') }}
                         </div>
                     @endif
 

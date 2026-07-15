@@ -15,8 +15,7 @@
             </h1>
 
             <p class="page-description">
-                Pilih negara tujuan impor untuk melihat profil negara,
-                indikator ekonomi, cuaca, kurs mata uang, berita, grafik analitik,
+                Pilih negara untuk melihat profil, ekonomi, cuaca, kurs, berita,
                 dan Risk Score rantai pasok.
             </p>
         </div>
@@ -209,7 +208,7 @@
                     </strong>
 
                     <small>
-                        Kode negara internasional
+                        Kode negara
                     </small>
                 </div>
 
@@ -221,7 +220,7 @@
                     </strong>
 
                     <small>
-                        Pusat pemerintahan
+                        Pusat negara
                     </small>
                 </div>
 
@@ -255,16 +254,15 @@
             <div class="country-overview-main">
                 <div class="country-identity">
                     <span class="country-overview-label">
-                        Sinkronisasi Cepat
+                        Sinkronisasi
                     </span>
 
                     <h2>
-                        Sinkronkan Semua Data
+                        Sinkronkan Data Negara
                     </h2>
 
                     <p>
-                        Ambil data ekonomi, cuaca, kurs, berita, lalu hitung Risk Score
-                        secara otomatis untuk negara yang dipilih.
+                        Perbarui ekonomi, cuaca, kurs, berita, dan Risk Score.
                     </p>
                 </div>
             </div>
@@ -300,7 +298,7 @@
                     </h3>
 
                     <p>
-                        Sistem menghitung risiko dari cuaca, inflasi, kurs, dan berita.
+                        Risiko dihitung dari cuaca, inflasi, kurs, dan berita.
                     </p>
                 </div>
 
@@ -352,7 +350,7 @@
                                     </div>
 
                                     <small class="text-muted">
-                                        Skala 0 sampai 100
+                                        Skor risiko
                                     </small>
                                 </td>
                             </tr>
@@ -382,7 +380,7 @@
                                     <br>
 
                                     <small class="text-muted">
-                                        Waktu kalkulasi terakhir
+                                        Kalkulasi terakhir
                                     </small>
                                 </td>
                             </tr>
@@ -394,11 +392,11 @@
             <article class="analysis-card">
                 <div class="analysis-heading">
                     <h3>
-                        Intelijen Berita GNews
+                        Intelijen Berita
                     </h3>
 
                     <p>
-                        Berita dianalisis dengan kamus kata positif dan negatif untuk menghasilkan skor risiko berita.
+                        Berita dianalisis untuk membaca potensi risiko.
                     </p>
                 </div>
 
@@ -420,7 +418,7 @@
                         class="btn btn-primary"
                     >
                         <i class="bi bi-newspaper me-1"></i>
-                        Sinkronkan Berita GNews
+                        Sinkronkan Berita
                     </button>
                 </form>
 
@@ -487,8 +485,7 @@
                     </h3>
 
                     <p>
-                        Grafik ringkasan indikator ekonomi, cuaca, sentimen berita,
-                        kurs, dan komponen risk score.
+                        Grafik ekonomi, cuaca, berita, kurs, dan Risk Score.
                     </p>
                 </div>
 
@@ -499,7 +496,7 @@
                                 Grafik Indikator Ekonomi
                             </h5>
 
-                            <div style="height: 320px;">
+                            <div style="height: 180px;">
                                 <canvas id="economicChart"></canvas>
                             </div>
                         </div>
@@ -511,7 +508,7 @@
                                 Grafik Cuaca dan Risiko
                             </h5>
 
-                            <div style="height: 320px;">
+                            <div style="height: 180px;">
                                 <canvas id="weatherChart"></canvas>
                             </div>
                         </div>
@@ -523,7 +520,7 @@
                                 Grafik Komponen Risk Score
                             </h5>
 
-                            <div style="height: 320px;">
+                            <div style="height: 180px;">
                                 <canvas id="riskComponentChart"></canvas>
                             </div>
                         </div>
@@ -535,7 +532,7 @@
                                 Grafik Sentimen Berita
                             </h5>
 
-                            <div style="height: 320px;">
+                            <div style="height: 180px;">
                                 <canvas id="sentimentChart"></canvas>
                             </div>
                         </div>
@@ -547,7 +544,7 @@
                                 Grafik Ringkasan Risiko
                             </h5>
 
-                            <div style="height: 320px;">
+                            <div style="height: 180px;">
                                 <canvas id="summaryRiskChart"></canvas>
                             </div>
                         </div>
@@ -567,7 +564,7 @@
                     </h3>
 
                     <p>
-                        Artikel terkait logistik, perdagangan, ekonomi, impor, ekspor, dan rantai pasok.
+                        Artikel terkait ekonomi, logistik, perdagangan, dan rantai pasok.
                     </p>
                 </div>
 
@@ -590,7 +587,7 @@
 
                                     @if ($news['description'])
                                         <p class="mb-2 text-muted">
-                                            {{ \Illuminate\Support\Str::limit($news['description'], 220) }}
+                                            {{ \Illuminate\Support\Str::limit($news['description'], 180) }}
                                         </p>
                                     @endif
 
@@ -633,7 +630,7 @@
                         <div class="alert alert-warning border-0 shadow-sm mb-0">
                             <i class="bi bi-info-circle me-2"></i>
                             Berita belum tersedia. Klik tombol
-                            <strong>Sinkronkan Berita GNews</strong>.
+                            <strong>Sinkronkan Berita</strong>.
                         </div>
                     @endforelse
                 </div>
@@ -644,11 +641,11 @@
             <article class="analysis-card">
                 <div class="analysis-heading">
                     <h3>
-                        Indikator Ekonomi World Bank
+                        Indikator Ekonomi
                     </h3>
 
                     <p>
-                        Data ekonomi terbaru yang berhasil disimpan dari World Bank API.
+                        Data ekonomi terbaru negara terpilih.
                     </p>
                 </div>
 
@@ -670,7 +667,7 @@
                         class="btn btn-primary"
                     >
                         <i class="bi bi-arrow-repeat me-1"></i>
-                        Sinkronkan Data World Bank
+                        Sinkronkan Data Ekonomi
                     </button>
                 </form>
 
@@ -700,11 +697,11 @@
             <article class="analysis-card">
                 <div class="analysis-heading">
                     <h3>
-                        Cuaca Saat Ini Open-Meteo
+                        Cuaca Saat Ini
                     </h3>
 
                     <p>
-                        Data cuaca dipakai untuk membaca potensi gangguan pengiriman.
+                        Data cuaca untuk membaca potensi gangguan pengiriman.
                     </p>
                 </div>
 
@@ -726,7 +723,7 @@
                         class="btn btn-primary"
                     >
                         <i class="bi bi-cloud-arrow-down me-1"></i>
-                        Sinkronkan Cuaca Open-Meteo
+                        Sinkronkan Cuaca
                     </button>
                 </form>
 
@@ -799,14 +796,17 @@
         </section>
 
         <section class="risk-analysis-grid mt-4">
-            <article class="analysis-card">
+            <article
+                class="analysis-card"
+                style="grid-column: 1 / -1;"
+            >
                 <div class="analysis-heading">
                     <h3>
-                        Kurs Mata Uang ExchangeRate API
+                        Kurs Mata Uang
                     </h3>
 
                     <p>
-                        Data kurs dipakai untuk melihat dampak perubahan mata uang terhadap biaya impor.
+                        Data kurs untuk melihat dampak perubahan mata uang.
                     </p>
                 </div>
 
@@ -828,7 +828,7 @@
                         class="btn btn-primary"
                     >
                         <i class="bi bi-currency-exchange me-1"></i>
-                        Sinkronkan Kurs ExchangeRate
+                        Sinkronkan Kurs
                     </button>
                 </form>
 
@@ -853,7 +853,7 @@
                         </strong>
 
                         <small>
-                            Dibanding data sebelumnya
+                            Perubahan kurs
                         </small>
                     </div>
 
@@ -872,42 +872,6 @@
                             {{ $currencySummary['risk_label'] ?? 'Klik sinkronkan kurs' }}
                         </small>
                     </div>
-                </div>
-            </article>
-
-            <article class="analysis-card">
-                <div class="analysis-heading">
-                    <h3>
-                        API Pemantau Negara
-                    </h3>
-
-                    <p>
-                        Endpoint internal sudah menampilkan data negara, ekonomi,
-                        cuaca, kurs, berita, grafik, dan Risk Score.
-                    </p>
-                </div>
-
-                <div class="country-stat mt-3">
-                    <span>Endpoint</span>
-
-                    <strong>
-                        GET /api/countries
-                    </strong>
-
-                    <small>
-                        JSON dashboard negara
-                    </small>
-                </div>
-
-                <div class="mt-3">
-                    <a
-                        href="{{ route('api.countries.show', ['country' => $selectedCountry->iso3_code]) }}"
-                        target="_blank"
-                        class="btn btn-outline-primary"
-                    >
-                        <i class="bi bi-code-slash me-1"></i>
-                        Lihat JSON API
-                    </a>
                 </div>
             </article>
         </section>
@@ -975,16 +939,62 @@
                             {
                                 label: label,
                                 data: values,
-                                borderWidth: 1
+                                borderWidth: 1,
+                                borderRadius: 6,
+                                maxBarThickness: 32
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: {
+                            padding: {
+                                top: 6,
+                                right: 6,
+                                bottom: 0,
+                                left: 0
+                            }
+                        },
                         scales: {
+                            x: {
+                                ticks: {
+                                    autoSkip: true,
+                                    maxRotation: 35,
+                                    minRotation: 0,
+                                    font: {
+                                        size: 10
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
                             y: {
-                                beginAtZero: true
+                                beginAtZero: true,
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    boxWidth: 12,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return label + ': ' + context.parsed.y;
+                                    }
+                                }
                             }
                         }
                     }

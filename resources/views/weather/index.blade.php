@@ -158,7 +158,7 @@
                     </strong>
 
                     <small>
-                        Open-Meteo API
+                        Data terbaru
                     </small>
                 </div>
             </div>
@@ -191,20 +191,15 @@
                 </div>
 
                 <p class="analysis-description">
-                    Risiko cuaca dihitung dari kombinasi curah hujan, kecepatan angin,
-                    dan kode cuaca. Nilai ini membantu membaca potensi gangguan pengiriman.
+                    Pembaruan: {{ $lastUpdate ?? 'Belum tersedia' }}
                 </p>
             </article>
 
             <article class="analysis-card">
                 <div class="analysis-heading">
                     <h3>
-                        Status Open-Meteo API
-                    </h3>
-
-                    <p>
                         Status Cuaca
-                    </p>
+                    </h3>
                 </div>
 
                 <div class="country-overview-stats">
@@ -229,7 +224,7 @@
                         </strong>
 
                         <small>
-                           Koordinat negara
+                            Koordinat negara
                         </small>
                     </div>
 
@@ -241,7 +236,7 @@
                         </strong>
 
                         <small>
-                             Riwayat tersimpan
+                            Riwayat tersimpan
                         </small>
                     </div>
                 </div>
@@ -257,6 +252,7 @@
                     <h3>
                         Grafik Pemantauan Cuaca
                     </h3>
+                </div>
 
                 <div class="row g-4">
                     <div class="col-12 col-xl-6">
@@ -321,7 +317,7 @@
                     </h3>
 
                     <p>
-                        Daftar data cuaca terbaru dari Open-Meteo untuk negara yang dipilih.
+                        Data cuaca terbaru negara terpilih.
                     </p>
                 </div>
 
@@ -379,30 +375,6 @@
                     </table>
                 </div>
             </article>
-        </section>
-
-        <section class="country-overview-card mt-4">
-            <div class="country-overview-main">
-                <div class="country-identity">
-                    <span class="country-overview-label">
-                        API Pemantau Cuaca
-                    </span>
-
-                    <h2>
-                        Endpoint JSON Weather
-                    </h2>
-
-                </div>
-            </div>
-
-            <a
-                href="{{ route('api.weather.show', ['country' => $selectedCountry->iso3_code]) }}"
-                target="_blank"
-                class="btn btn-outline-primary mt-3"
-            >
-                <i class="bi bi-code-slash me-1"></i>
-                Lihat JSON API
-            </a>
         </section>
     </div>
 @endsection
@@ -475,16 +447,62 @@
                             {
                                 label: label,
                                 data: values,
-                                borderWidth: 1
+                                borderWidth: 1,
+                                borderRadius: 6,
+                                maxBarThickness: 30
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: {
+                            padding: {
+                                top: 6,
+                                right: 6,
+                                bottom: 0,
+                                left: 0
+                            }
+                        },
                         scales: {
+                            x: {
+                                ticks: {
+                                    autoSkip: true,
+                                    maxRotation: 35,
+                                    minRotation: 0,
+                                    font: {
+                                        size: 10
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
                             y: {
-                                beginAtZero: true
+                                beginAtZero: true,
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    boxWidth: 12,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return label + ': ' + context.parsed.y;
+                                    }
+                                }
                             }
                         }
                     }

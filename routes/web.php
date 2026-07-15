@@ -32,6 +32,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/dashboard', 'App\Http\Controllers\DashboardController@show')
         ->name('api.dashboard.show');
 
+    Route::get('/api/risk', 'App\Http\Controllers\DashboardController@show')
+        ->name('api.risk.show');
+
     Route::get('/countries', [CountryMonitoringController::class, 'index'])
         ->name('countries.index');
 

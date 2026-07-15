@@ -4,33 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\Country;
 use App\Models\GlobalPort;
-use App\Services\OverpassPortService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
-use Throwable;
 
 class PortController extends Controller
 {
-    public function index(
-        Request $request,
-        OverpassPortService $overpassPortService
-    ): View {
-        return view('ports.index', $this->buildPortData(
-            $request,
-            $overpassPortService
-        ));
+    public function index(Request $request): View
+    {
+        return view('ports.index', $this->buildPortData($request));
     }
 
-    public function show(
-        Request $request,
-        OverpassPortService $overpassPortService
-    ): JsonResponse {
-        $data = $this->buildPortData(
-            $request,
-            $overpassPortService
-        );
+    public function show(Request $request): JsonResponse
+    {
+        $data = $this->buildPortData($request);
 
         return response()->json([
             'success' => true,
@@ -48,10 +36,8 @@ class PortController extends Controller
         ]);
     }
 
-    private function buildPortData(
-        Request $request,
-        OverpassPortService $overpassPortService
-    ): array {
+    private function buildPortData(Request $request): array
+    {
         $countries = Country::query()
             ->alphabetical()
             ->get();
@@ -74,42 +60,22 @@ class PortController extends Controller
             $selectedCountry = $countries->first();
         }
 
-        $ports = collect();
-        $apiAvailable = false;
-        $apiError = null;
-        $source = 'Database fallback';
+        $ports = $selectedCountry
+            ? $this->getDatabasePorts($selectedCountry)
+            : collect();
 
-        if ($selectedCountry) {
-            try {
-                $ports = $overpassPortService->getPortsByCountry($selectedCountry);
+        $source = $ports->isNotEmpty()
+            ? 'World Port Index Dataset'
+            : 'Belum ada data pelabuhan';
 
-                if ($ports->isNotEmpty()) {
-                    $apiAvailable = true;
-                    $source = 'OpenStreetMap Overpass API';
-                }
-            } catch (Throwable $exception) {
-                $apiError = $exception->getMessage();
-            }
-
-            if ($ports->isEmpty()) {
-                $ports = $this->getFallbackPorts($selectedCountry);
-                $source = 'Database fallback';
-            }
-        }
-
-        $selectedPortCode = strtoupper(
+        $selectedPortKeyword = strtoupper(
             trim($request->string('port', '')->toString())
         );
 
-        $selectedPort = $selectedPortCode !== ''
-            ? $ports->first(function (array $port) use ($selectedPortCode) {
-                return strtoupper((string) ($port['code'] ?? '')) === $selectedPortCode;
-            })
-            : $ports->first();
-
-        if (!$selectedPort && $ports->isNotEmpty()) {
-            $selectedPort = $ports->first();
-        }
+        $selectedPort = $this->resolveSelectedPort(
+            $ports,
+            $selectedPortKeyword
+        );
 
         $averageRisk = $ports->isNotEmpty()
             ? round((float) $ports->avg('risk_score'), 2)
@@ -119,12 +85,17 @@ class PortController extends Controller
             ->sortByDesc('risk_score')
             ->first();
 
-        $chartLabels = $ports
+        $chartPorts = $ports
+            ->sortByDesc('risk_score')
+            ->take(30)
+            ->values();
+
+        $chartLabels = $chartPorts
             ->map(fn (array $port) => $port['code'] ?? $port['name'] ?? '-')
             ->values()
             ->all();
 
-        $chartValues = $ports
+        $chartValues = $chartPorts
             ->map(fn (array $port) => round((float) ($port['risk_score'] ?? 0), 2))
             ->values()
             ->all();
@@ -147,11 +118,11 @@ class PortController extends Controller
             'selectedCountry' => $selectedCountry,
             'ports' => $ports,
             'selectedPort' => $selectedPort,
-            'defaultLatitude' => $defaultLatitude,
-            'defaultLongitude' => $defaultLongitude,
+            'defaultLatitude' => (float) $defaultLatitude,
+            'defaultLongitude' => (float) $defaultLongitude,
             'source' => $source,
-            'apiAvailable' => $apiAvailable,
-            'apiError' => $apiError,
+            'apiAvailable' => $ports->isNotEmpty(),
+            'apiError' => null,
             'summary' => [
                 'total_ports' => $ports->count(),
                 'average_risk_score' => $averageRisk,
@@ -169,17 +140,18 @@ class PortController extends Controller
         ];
     }
 
-    private function getFallbackPorts(Country $country): Collection
+    private function getDatabasePorts(Country $country): Collection
     {
         return GlobalPort::query()
             ->with('country')
             ->where('country_id', $country->id)
+            ->orderByDesc('risk_score')
             ->orderBy('name')
             ->get()
             ->map(function (GlobalPort $port) {
                 return [
                     'id' => 'db-' . $port->id,
-                    'source' => 'Database fallback',
+                    'source' => 'World Port Index Dataset',
                     'source_type' => 'database',
                     'osm_id' => null,
 
@@ -188,21 +160,55 @@ class PortController extends Controller
                         : null,
 
                     'name' => $port->name,
-                    'code' => $port->code,
-                    'city' => $port->city,
-                    'type' => $port->type,
-                    'latitude' => $port->latitude,
-                    'longitude' => $port->longitude,
-                    'capacity_score' => $port->capacity_score,
-                    'congestion_score' => $port->congestion_score,
-                    'weather_exposure_score' => $port->weather_exposure_score,
-                    'risk_score' => $port->risk_score,
-                    'risk_level' => $port->risk_level,
-                    'importance_score' => $port->capacity_score,
-                    'description' => $port->description,
+                    'code' => $port->code ?: 'WPI-' . $port->id,
+                    'city' => $port->city ?: '-',
+                    'type' => $port->type ?: 'World Port Index Port',
+                    'latitude' => (float) $port->latitude,
+                    'longitude' => (float) $port->longitude,
+                    'capacity_score' => (float) $port->capacity_score,
+                    'congestion_score' => (float) $port->congestion_score,
+                    'weather_exposure_score' => (float) $port->weather_exposure_score,
+                    'risk_score' => (float) $port->risk_score,
+                    'risk_level' => $port->risk_level ?: 'moderate',
+                    'importance_score' => (float) $port->capacity_score,
+                    'description' => $port->description
+                        ?: 'Data pelabuhan dari World Port Index Dataset.',
                 ];
             })
             ->values();
+    }
+
+    private function resolveSelectedPort(
+        Collection $ports,
+        string $selectedPortKeyword
+    ): ?array {
+        if ($ports->isEmpty()) {
+            return null;
+        }
+
+        if ($selectedPortKeyword === '') {
+            return $ports->first();
+        }
+
+        $selectedPort = $ports->first(function (array $port) use ($selectedPortKeyword) {
+            $code = strtoupper((string) ($port['code'] ?? ''));
+            $name = strtoupper((string) ($port['name'] ?? ''));
+
+            return $code === $selectedPortKeyword
+                || $name === $selectedPortKeyword;
+        });
+
+        if ($selectedPort) {
+            return $selectedPort;
+        }
+
+        $selectedPort = $ports->first(function (array $port) use ($selectedPortKeyword) {
+            $name = strtoupper((string) ($port['name'] ?? ''));
+
+            return str_contains($name, $selectedPortKeyword);
+        });
+
+        return $selectedPort ?: $ports->first();
     }
 
     private function formatCountry(Country $country): array

@@ -29,7 +29,7 @@ class WatchlistController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Data daftar pemantauan berhasil dimuat.',
+            'message' => 'Data favorit pemantauan berhasil dimuat.',
             'summary' => $data['summary'],
             'watchlist' => $data['watchlist'],
             'chart_data' => $data['chartData'],
@@ -45,76 +45,102 @@ class WatchlistController extends Controller
             ->orderBy('name')
             ->get();
 
-        if ($countries->isEmpty()) {
-            $countries = Country::query()
-                ->where('iso3_code', 'IDN')
-                ->get();
-        }
-
         $watchlist = $countries
             ->map(fn (Country $country) => $this->buildCountryItem($country))
-            ->sortByDesc(fn (array $item) => $item['risk_score']['total_score'])
+            ->sortByDesc('risk_score.total_score')
             ->values();
 
-        $criticalCount = $watchlist
-            ->where('risk_score.risk_level', 'critical')
-            ->count();
-
-        $highCount = $watchlist
-            ->where('risk_score.risk_level', 'high')
-            ->count();
-
-        $moderateCount = $watchlist
-            ->where('risk_score.risk_level', 'moderate')
-            ->count();
-
-        $lowCount = $watchlist
-            ->where('risk_score.risk_level', 'low')
-            ->count();
-
-        $averageRisk = $watchlist->isNotEmpty()
-            ? round((float) $watchlist->avg('risk_score.total_score'), 2)
-            : 0.0;
-
-        $highestRisk = $watchlist->first();
+        $summary = $this->buildSummary($watchlist);
 
         return [
+            'summary' => $summary,
             'watchlist' => $watchlist,
-            'summary' => [
-                'total_countries' => $watchlist->count(),
-                'average_risk_score' => $averageRisk,
-                'highest_risk_country' => $highestRisk['country']['name'] ?? 'Belum tersedia',
-                'highest_risk_score' => $highestRisk['risk_score']['total_score'] ?? 0,
-                'critical_count' => $criticalCount,
-                'high_count' => $highCount,
-                'moderate_count' => $moderateCount,
-                'low_count' => $lowCount,
+            'chartData' => $this->buildChartData($watchlist, $summary),
+        ];
+    }
+
+    private function buildSummary(Collection $watchlist): array
+    {
+        $itemsWithRisk = $watchlist
+            ->filter(function ($item) {
+                return isset($item['risk_score']['total_score'])
+                    && $item['risk_score']['total_score'] !== null;
+            })
+            ->values();
+
+        $averageRisk = $itemsWithRisk->isNotEmpty()
+            ? round((float) $itemsWithRisk->avg('risk_score.total_score'), 2)
+            : 0.0;
+
+        $highestRisk = $itemsWithRisk
+            ->sortByDesc('risk_score.total_score')
+            ->first();
+
+        return [
+            'total_countries' => $watchlist->count(),
+            'average_risk_score' => $averageRisk,
+            'highest_risk_country' => $highestRisk['country']['name'] ?? 'Belum tersedia',
+            'highest_risk_score' => isset($highestRisk['risk_score']['total_score'])
+                ? round((float) $highestRisk['risk_score']['total_score'], 2)
+                : 0.0,
+            'risk_label' => $this->riskScoreLabel($averageRisk),
+        ];
+    }
+
+    private function buildChartData(
+        Collection $watchlist,
+        array $summary
+    ): array {
+        $riskLevelCounts = [
+            'low' => 0,
+            'moderate' => 0,
+            'high' => 0,
+            'critical' => 0,
+        ];
+
+        foreach ($watchlist as $item) {
+            $level = $item['risk_score']['risk_level'] ?? 'low';
+
+            if (!array_key_exists($level, $riskLevelCounts)) {
+                $level = 'low';
+            }
+
+            $riskLevelCounts[$level]++;
+        }
+
+        $topRiskItems = $watchlist
+            ->sortByDesc('risk_score.total_score')
+            ->take(25)
+            ->values();
+
+        return [
+            'risk_level' => [
+                'labels' => [
+                    'Risiko Rendah',
+                    'Risiko Sedang',
+                    'Risiko Tinggi',
+                    'Risiko Kritis',
+                ],
+                'values' => [
+                    $riskLevelCounts['low'],
+                    $riskLevelCounts['moderate'],
+                    $riskLevelCounts['high'],
+                    $riskLevelCounts['critical'],
+                ],
             ],
-            'chartData' => [
-                'risk' => [
-                    'labels' => $watchlist
-                        ->map(fn (array $item) => $item['country']['iso3_code'])
-                        ->values()
-                        ->all(),
-                    'values' => $watchlist
-                        ->map(fn (array $item) => round((float) $item['risk_score']['total_score'], 2))
-                        ->values()
-                        ->all(),
-                ],
-                'level' => [
-                    'labels' => [
-                        'Kritis',
-                        'Tinggi',
-                        'Sedang',
-                        'Rendah',
-                    ],
-                    'values' => [
-                        $criticalCount,
-                        $highCount,
-                        $moderateCount,
-                        $lowCount,
-                    ],
-                ],
+            'top_risk' => [
+                'labels' => $topRiskItems
+                    ->map(fn ($item) => $item['country']['iso3_code'] ?? '-')
+                    ->values()
+                    ->all(),
+                'values' => $topRiskItems
+                    ->map(fn ($item) => round((float) ($item['risk_score']['total_score'] ?? 0), 2))
+                    ->values()
+                    ->all(),
+            ],
+            'summary' => [
+                'average_risk_score' => $summary['average_risk_score'] ?? 0,
+                'highest_risk_score' => $summary['highest_risk_score'] ?? 0,
             ],
         ];
     }
@@ -152,7 +178,7 @@ class WatchlistController extends Controller
             ? round((float) $latestExchangeRate->currency_risk, 2)
             : round((float) ($latestRiskScore?->currency_score ?? 0), 2);
 
-        $newsScore = $newsSummary['average_risk_score'] > 0
+        $newsScore = ($newsSummary['average_risk_score'] ?? 0) > 0
             ? round((float) $newsSummary['average_risk_score'], 2)
             : round((float) ($latestRiskScore?->news_score ?? 0), 2);
 
@@ -178,7 +204,7 @@ class WatchlistController extends Controller
             $latestWeather?->recorded_at,
             $latestExchangeRate?->recorded_at,
             $latestInflation?->fetched_at,
-            $newsSummary['last_analyzed_at'],
+            $newsSummary['last_analyzed_at'] ?? null,
         ])->filter();
 
         $lastUpdate = $timestamps->isNotEmpty()
@@ -198,16 +224,24 @@ class WatchlistController extends Controller
             ],
             'weather' => [
                 'available' => $latestWeather !== null,
-                'temperature' => $latestWeather ? round((float) $latestWeather->temperature, 2) : null,
-                'precipitation' => $latestWeather ? round((float) $latestWeather->precipitation, 2) : null,
-                'wind_speed' => $latestWeather ? round((float) $latestWeather->wind_speed, 2) : null,
+                'temperature' => $latestWeather
+                    ? round((float) $latestWeather->temperature, 2)
+                    : null,
+                'precipitation' => $latestWeather
+                    ? round((float) $latestWeather->precipitation, 2)
+                    : null,
+                'wind_speed' => $latestWeather
+                    ? round((float) $latestWeather->wind_speed, 2)
+                    : null,
                 'recorded_at' => $latestWeather?->recorded_at?->format('d M Y H:i'),
             ],
             'currency' => [
                 'available' => $latestExchangeRate !== null,
                 'base_currency' => $latestExchangeRate?->base_currency,
                 'target_currency' => $latestExchangeRate?->target_currency,
-                'rate' => $latestExchangeRate ? round((float) $latestExchangeRate->rate, 4) : null,
+                'rate' => $latestExchangeRate
+                    ? round((float) $latestExchangeRate->rate, 4)
+                    : null,
                 'change_percentage' => $latestExchangeRate?->change_percentage !== null
                     ? round((float) $latestExchangeRate->change_percentage, 4)
                     : null,
@@ -216,7 +250,9 @@ class WatchlistController extends Controller
             'news' => $newsSummary,
             'economic' => [
                 'inflation_available' => $latestInflation !== null,
-                'inflation_value' => $latestInflation ? round((float) $latestInflation->value, 2) : null,
+                'inflation_value' => $latestInflation
+                    ? round((float) $latestInflation->value, 2)
+                    : null,
                 'inflation_year' => $latestInflation?->year,
             ],
             'last_update' => $lastUpdate,
@@ -269,9 +305,17 @@ class WatchlistController extends Controller
             ->limit(10)
             ->get();
 
-        $positiveCount = $sentiments->where('sentiment', 'positive')->count();
-        $neutralCount = $sentiments->where('sentiment', 'neutral')->count();
-        $negativeCount = $sentiments->where('sentiment', 'negative')->count();
+        $positiveCount = $sentiments
+            ->where('sentiment', 'positive')
+            ->count();
+
+        $neutralCount = $sentiments
+            ->where('sentiment', 'neutral')
+            ->count();
+
+        $negativeCount = $sentiments
+            ->where('sentiment', 'negative')
+            ->count();
 
         $averageRiskScore = $sentiments->isNotEmpty()
             ? round((float) $sentiments->avg('risk_score'), 2)
@@ -283,9 +327,13 @@ class WatchlistController extends Controller
             'neutral_count' => $neutralCount,
             'negative_count' => $negativeCount,
             'average_risk_score' => $averageRiskScore,
-            'risk_label' => $this->riskLevelLabel($this->riskLevelFromScore($averageRiskScore)),
+            'risk_label' => $this->riskLevelLabel(
+                $this->riskLevelFromScore($averageRiskScore)
+            ),
             'last_analyzed_at' => $sentiments->max('analyzed_at'),
-            'last_analyzed_at_display' => $sentiments->max('analyzed_at')?->format('d M Y H:i'),
+            'last_analyzed_at_display' => $sentiments->max('analyzed_at')
+                ? $sentiments->max('analyzed_at')->format('d M Y H:i')
+                : null,
         ];
     }
 
@@ -319,6 +367,13 @@ class WatchlistController extends Controller
             'low' => 'Risiko Rendah',
             default => 'Belum dihitung',
         };
+    }
+
+    private function riskScoreLabel(float $score): string
+    {
+        return $this->riskLevelLabel(
+            $this->riskLevelFromScore($score)
+        );
     }
 
     private function formatCountry(Country $country): array
