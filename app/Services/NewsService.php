@@ -15,7 +15,9 @@ use Throwable;
 
 class NewsService
 {
-    private string $endpoint = 'https://gnews.io/api/v4/search';
+    private const MAX_ARTICLES = 10;
+
+    private const RECENT_DAYS = 7;
 
     public function getLatestNews(
         Country $country,
@@ -55,44 +57,87 @@ class NewsService
 
     private function fetchFromGNews(Country $country): Collection
     {
-        $apiKey = config('services.gnews.api_key')
-            ?: env('GNEWS_API_KEY');
+        $apiKey = config('services.gnews.api_key') ?: env('GNEWS_API_KEY');
 
         if (!$apiKey) {
             throw new RuntimeException('API key GNews belum tersedia di .env.');
         }
 
-        $query = $this->buildSafeQuery($country);
+        $baseUrl = rtrim(
+            (string) config('services.gnews.base_url', 'https://gnews.io/api/v4'),
+            '/'
+        );
 
-        $response = Http::timeout(30)
-            ->retry(1, 1000)
-            ->get($this->endpoint, [
-                'q' => $query,
-                'lang' => 'en',
-                'country' => strtolower((string) $country->iso2_code),
-                'max' => 10,
-                'apikey' => $apiKey,
-            ]);
+        $endpoint = $baseUrl . '/search';
 
-        if (!$response->successful()) {
-            throw new RuntimeException(
-                'GNews HTTP ' . $response->status() . ': ' . $response->body()
-            );
+        $queries = $this->buildSearchQueries($country);
+        $articles = collect();
+
+        foreach ($queries as $query) {
+            $response = Http::timeout(30)
+                ->retry(1, 1000)
+                ->acceptJson()
+                ->get($endpoint, [
+                    'q' => $query,
+                    'lang' => 'en',
+                    'max' => self::MAX_ARTICLES,
+                    'in' => 'title,description,content',
+                    'from' => now()->subDays(self::RECENT_DAYS)->utc()->format('Y-m-d\TH:i:s\Z'),
+                    'to' => now()->utc()->format('Y-m-d\TH:i:s\Z'),
+                    'sortby' => 'publishedAt',
+                    'nullable' => 'description,content,image',
+                    'apikey' => $apiKey,
+                ]);
+
+            if (!$response->successful()) {
+                throw new RuntimeException(
+                    'GNews HTTP ' . $response->status() . ': ' . $response->body()
+                );
+            }
+
+            $currentArticles = collect($response->json('articles', []));
+
+            $articles = $articles->merge($currentArticles);
+
+            if ($articles->count() >= self::MAX_ARTICLES) {
+                break;
+            }
         }
 
-        return collect($response->json('articles', []));
+        return $articles
+            ->filter(fn ($article) => !empty($article['url']))
+            ->unique(fn ($article) => $article['url'])
+            ->sortByDesc(fn ($article) => $article['publishedAt'] ?? '')
+            ->take(self::MAX_ARTICLES)
+            ->values();
     }
 
-    private function buildSafeQuery(Country $country): string
+    private function buildSearchQueries(Country $country): array
     {
         $countryName = trim((string) $country->name);
+        $countryName = str_replace('"', '', $countryName);
 
-        $query = implode(' ', array_filter([
-            'supply chain logistics trade economy import export',
-            $countryName,
-        ]));
+        if ($countryName === '') {
+            $countryName = 'global';
+        }
 
-        return Str::limit($query, 180, '');
+        return [
+            Str::limit(
+                '"' . $countryName . '" AND (supply chain OR logistics OR trade OR economy OR export OR import OR shipping)',
+                190,
+                ''
+            ),
+            Str::limit(
+                '"' . $countryName . '" AND (business OR market OR port OR cargo OR inflation OR investment)',
+                190,
+                ''
+            ),
+            Str::limit(
+                '"' . $countryName . '" AND (trade OR economy OR logistics)',
+                190,
+                ''
+            ),
+        ];
     }
 
     private function storeArticles(
@@ -209,6 +254,12 @@ class NewsService
             'attack',
             'tension',
             'decline',
+            'shipment delay',
+            'supply disruption',
+            'trade war',
+            'logistics crisis',
+            'export ban',
+            'import restriction',
         ];
 
         $positiveKeywords = [
@@ -226,6 +277,12 @@ class NewsService
             'surplus',
             'resilient',
             'strong',
+            'cooperation',
+            'trade deal',
+            'supply growth',
+            'logistics improvement',
+            'export growth',
+            'market recovery',
         ];
 
         $negativeScore = $this->countKeywordHits(
@@ -282,7 +339,7 @@ class NewsService
             ->with('sentiment')
             ->where('country_id', $country->id)
             ->latest('published_at')
-            ->limit(10)
+            ->limit(self::MAX_ARTICLES)
             ->get();
     }
 
