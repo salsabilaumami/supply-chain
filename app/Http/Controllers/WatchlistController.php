@@ -5,14 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Country;
 use App\Models\EconomicIndicator;
 use App\Models\ExchangeRate;
-use App\Models\NewsCache;
 use App\Models\NewsSentiment;
 use App\Models\RiskScore;
+use App\Models\Watchlist;
 use App\Models\WeatherData;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Throwable;
 
 class WatchlistController extends Controller
 {
@@ -20,12 +24,38 @@ class WatchlistController extends Controller
 
     public function index(Request $request): View
     {
-        return view('watchlist.index', $this->buildWatchlistData());
+        return view('watchlist.index', $this->buildWatchlistData($request));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'country_id' => ['required', 'integer', 'exists:countries,id'],
+        ]);
+
+        Watchlist::query()->firstOrCreate([
+            'user_id' => $request->user()->id,
+            'country_id' => $validated['country_id'],
+        ]);
+
+        return back()
+            ->with('success', 'Negara berhasil disimpan ke Favorite Monitoring List.');
+    }
+
+    public function destroy(Request $request, Country $country): RedirectResponse
+    {
+        Watchlist::query()
+            ->where('user_id', $request->user()->id)
+            ->where('country_id', $country->id)
+            ->delete();
+
+        return back()
+            ->with('success', 'Negara berhasil dihapus dari Favorite Monitoring List.');
     }
 
     public function show(Request $request): JsonResponse
     {
-        $data = $this->buildWatchlistData();
+        $data = $this->buildWatchlistData($request);
 
         return response()->json([
             'success' => true,
@@ -36,16 +66,30 @@ class WatchlistController extends Controller
         ]);
     }
 
-    private function buildWatchlistData(): array
+    private function buildWatchlistData(Request $request): array
     {
-        $countryIds = $this->getMonitoredCountryIds();
+        $userId = $request->user()->id;
 
-        $countries = Country::query()
-            ->whereIn('id', $countryIds)
+        $favoriteRows = Watchlist::query()
+            ->with('country')
+            ->where('user_id', $userId)
+            ->latest()
+            ->get();
+
+        $favoriteCountryIds = $favoriteRows
+            ->pluck('country_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $availableCountries = Country::query()
+            ->whereNotIn('id', $favoriteCountryIds)
             ->orderBy('name')
             ->get();
 
-        $watchlist = $countries
+        $watchlist = $favoriteRows
+            ->pluck('country')
+            ->filter()
             ->map(fn (Country $country) => $this->buildCountryItem($country))
             ->sortByDesc('risk_score.total_score')
             ->values();
@@ -55,6 +99,7 @@ class WatchlistController extends Controller
         return [
             'summary' => $summary,
             'watchlist' => $watchlist,
+            'availableCountries' => $availableCountries,
             'chartData' => $this->buildChartData($watchlist, $summary),
         ];
     }
@@ -76,21 +121,6 @@ class WatchlistController extends Controller
             ->sortByDesc('risk_score.total_score')
             ->first();
 
-        return [
-            'total_countries' => $watchlist->count(),
-            'average_risk_score' => $averageRisk,
-            'highest_risk_country' => $highestRisk['country']['name'] ?? 'Belum tersedia',
-            'highest_risk_score' => isset($highestRisk['risk_score']['total_score'])
-                ? round((float) $highestRisk['risk_score']['total_score'], 2)
-                : 0.0,
-            'risk_label' => $this->riskScoreLabel($averageRisk),
-        ];
-    }
-
-    private function buildChartData(
-        Collection $watchlist,
-        array $summary
-    ): array {
         $riskLevelCounts = [
             'low' => 0,
             'moderate' => 0,
@@ -108,6 +138,25 @@ class WatchlistController extends Controller
             $riskLevelCounts[$level]++;
         }
 
+        return [
+            'total_countries' => $watchlist->count(),
+            'average_risk_score' => $averageRisk,
+            'highest_risk_country' => $highestRisk['country']['name'] ?? 'Belum tersedia',
+            'highest_risk_score' => isset($highestRisk['risk_score']['total_score'])
+                ? round((float) $highestRisk['risk_score']['total_score'], 2)
+                : 0.0,
+            'risk_label' => $this->riskScoreLabel($averageRisk),
+            'low_count' => $riskLevelCounts['low'],
+            'moderate_count' => $riskLevelCounts['moderate'],
+            'high_count' => $riskLevelCounts['high'],
+            'critical_count' => $riskLevelCounts['critical'],
+        ];
+    }
+
+    private function buildChartData(
+        Collection $watchlist,
+        array $summary
+    ): array {
         $topRiskItems = $watchlist
             ->sortByDesc('risk_score.total_score')
             ->take(25)
@@ -122,10 +171,10 @@ class WatchlistController extends Controller
                     'Risiko Kritis',
                 ],
                 'values' => [
-                    $riskLevelCounts['low'],
-                    $riskLevelCounts['moderate'],
-                    $riskLevelCounts['high'],
-                    $riskLevelCounts['critical'],
+                    $summary['low_count'] ?? 0,
+                    $summary['moderate_count'] ?? 0,
+                    $summary['high_count'] ?? 0,
+                    $summary['critical_count'] ?? 0,
                 ],
             ],
             'top_risk' => [
@@ -143,19 +192,6 @@ class WatchlistController extends Controller
                 'highest_risk_score' => $summary['highest_risk_score'] ?? 0,
             ],
         ];
-    }
-
-    private function getMonitoredCountryIds(): Collection
-    {
-        return collect()
-            ->merge(RiskScore::query()->whereNotNull('country_id')->distinct()->pluck('country_id'))
-            ->merge(WeatherData::query()->whereNotNull('country_id')->distinct()->pluck('country_id'))
-            ->merge(ExchangeRate::query()->whereNotNull('country_id')->distinct()->pluck('country_id'))
-            ->merge(NewsCache::query()->whereNotNull('country_id')->distinct()->pluck('country_id'))
-            ->merge(EconomicIndicator::query()->whereNotNull('country_id')->distinct()->pluck('country_id'))
-            ->filter()
-            ->unique()
-            ->values();
     }
 
     private function buildCountryItem(Country $country): array
@@ -199,17 +235,13 @@ class WatchlistController extends Controller
 
         $riskLevel = $this->riskLevelFromScore($totalScore);
 
-        $timestamps = collect([
+        $lastUpdate = $this->latestDateDisplay([
             $latestRiskScore?->calculated_at,
             $latestWeather?->recorded_at,
             $latestExchangeRate?->recorded_at,
             $latestInflation?->fetched_at,
             $newsSummary['last_analyzed_at'] ?? null,
-        ])->filter();
-
-        $lastUpdate = $timestamps->isNotEmpty()
-            ? $timestamps->sortDesc()->first()?->format('d M Y H:i')
-            : null;
+        ]);
 
         return [
             'country' => $this->formatCountry($country),
@@ -233,7 +265,7 @@ class WatchlistController extends Controller
                 'wind_speed' => $latestWeather
                     ? round((float) $latestWeather->wind_speed, 2)
                     : null,
-                'recorded_at' => $latestWeather?->recorded_at?->format('d M Y H:i'),
+                'recorded_at' => $this->dateDisplay($latestWeather?->recorded_at),
             ],
             'currency' => [
                 'available' => $latestExchangeRate !== null,
@@ -245,7 +277,7 @@ class WatchlistController extends Controller
                 'change_percentage' => $latestExchangeRate?->change_percentage !== null
                     ? round((float) $latestExchangeRate->change_percentage, 4)
                     : null,
-                'recorded_at' => $latestExchangeRate?->recorded_at?->format('d M Y H:i'),
+                'recorded_at' => $this->dateDisplay($latestExchangeRate?->recorded_at),
             ],
             'news' => $newsSummary,
             'economic' => [
@@ -321,6 +353,8 @@ class WatchlistController extends Controller
             ? round((float) $sentiments->avg('risk_score'), 2)
             : 0.0;
 
+        $lastAnalyzedAt = $sentiments->max('analyzed_at');
+
         return [
             'total_articles' => $sentiments->count(),
             'positive_count' => $positiveCount,
@@ -330,10 +364,8 @@ class WatchlistController extends Controller
             'risk_label' => $this->riskLevelLabel(
                 $this->riskLevelFromScore($averageRiskScore)
             ),
-            'last_analyzed_at' => $sentiments->max('analyzed_at'),
-            'last_analyzed_at_display' => $sentiments->max('analyzed_at')
-                ? $sentiments->max('analyzed_at')->format('d M Y H:i')
-                : null,
+            'last_analyzed_at' => $lastAnalyzedAt,
+            'last_analyzed_at_display' => $this->dateDisplay($lastAnalyzedAt),
         ];
     }
 
@@ -391,5 +423,40 @@ class WatchlistController extends Controller
             'currency_name' => $country->currency_name,
             'flag_url' => $country->flag_url,
         ];
+    }
+
+    private function latestDateDisplay(array $values): ?string
+    {
+        $latest = collect($values)
+            ->map(fn ($value) => $this->toCarbon($value))
+            ->filter()
+            ->sortByDesc(fn (CarbonInterface $value) => $value->timestamp)
+            ->first();
+
+        return $latest ? $latest->format('d M Y H:i') : null;
+    }
+
+    private function dateDisplay(mixed $value): ?string
+    {
+        $date = $this->toCarbon($value);
+
+        return $date ? $date->format('d M Y H:i') : null;
+    }
+
+    private function toCarbon(mixed $value): ?CarbonInterface
+    {
+        if (!$value) {
+            return null;
+        }
+
+        if ($value instanceof CarbonInterface) {
+            return $value;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (Throwable) {
+            return null;
+        }
     }
 }

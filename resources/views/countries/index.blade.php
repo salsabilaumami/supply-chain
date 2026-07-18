@@ -58,6 +58,16 @@
         </form>
     </section>
 
+    @if (session('success'))
+        <div
+            class="alert alert-success border-0 shadow-sm mb-4"
+            role="alert"
+        >
+            <i class="bi bi-check-circle me-2"></i>
+            {{ session('success') }}
+        </div>
+    @endif
+
     @if (session('error'))
         <div
             class="alert alert-danger border-0 shadow-sm mb-4"
@@ -65,6 +75,16 @@
         >
             <i class="bi bi-exclamation-triangle me-2"></i>
             {{ session('error') }}
+        </div>
+    @endif
+
+    @if ($errors->any())
+        <div
+            class="alert alert-danger border-0 shadow-sm mb-4"
+            role="alert"
+        >
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            {{ $errors->first() }}
         </div>
     @endif
 
@@ -196,6 +216,56 @@
                     <p>
                         {{ $selectedCountry->official_name ?? 'Nama resmi belum tersedia' }}
                     </p>
+
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        @if ($isFavorite ?? false)
+                            <form
+                                method="POST"
+                                action="{{ route('watchlist.destroy', $selectedCountry->id) }}"
+                                onsubmit="return confirm('Hapus negara ini dari favorit?')"
+                            >
+                                @csrf
+                                @method('DELETE')
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-outline-danger"
+                                >
+                                    <i class="bi bi-bookmark-check-fill me-1"></i>
+                                    Sudah di Favorit
+                                </button>
+                            </form>
+                        @else
+                            <form
+                                method="POST"
+                                action="{{ route('watchlist.store') }}"
+                            >
+                                @csrf
+
+                                <input
+                                    type="hidden"
+                                    name="country_id"
+                                    value="{{ $selectedCountry->id }}"
+                                >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-outline-primary"
+                                >
+                                    <i class="bi bi-bookmark-plus me-1"></i>
+                                    Simpan ke Favorit
+                                </button>
+                            </form>
+                        @endif
+
+                        <a
+                            href="{{ route('watchlist.index') }}"
+                            class="btn btn-outline-secondary"
+                        >
+                            <i class="bi bi-star me-1"></i>
+                            Lihat Favorite List
+                        </a>
+                    </div>
                 </div>
             </div>
 

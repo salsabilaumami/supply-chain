@@ -90,11 +90,17 @@ Route::middleware('auth')->group(function () {
         ->name('api.comparison.show');
 
     Route::get('/watchlist', [WatchlistController::class, 'index'])
-        ->name('watchlist.index');
+    ->name('watchlist.index');
+
+    Route::post('/watchlist', [WatchlistController::class, 'store'])
+    ->name('watchlist.store');
+
+    Route::delete('/watchlist/{country}', [WatchlistController::class, 'destroy'])
+    ->name('watchlist.destroy');
 
     Route::get('/api/watchlist', [WatchlistController::class, 'show'])
-        ->name('api.watchlist.show');
-
+    ->name('api.watchlist.show');
+    
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
 

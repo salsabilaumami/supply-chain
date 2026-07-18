@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Favorit Pemantauan')
+@section('title', 'Favorite Monitoring List')
 
 @section('content')
     @php
@@ -40,9 +40,80 @@
                 </h1>
 
                 <p class="page-description">
-                    Pantau negara prioritas yang disimpan untuk monitoring risiko.
+                    Simpan negara prioritas untuk dipantau dari sisi risiko, cuaca, kurs, berita, dan inflasi.
                 </p>
             </div>
+        </section>
+
+        @if (session('success'))
+            <div class="alert alert-success rounded-4 border-0 shadow-sm mb-0">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="alert alert-danger rounded-4 border-0 shadow-sm mb-0">
+                {{ $errors->first() }}
+            </div>
+        @endif
+
+        <section class="watchlist-summary-card">
+            <div class="watchlist-summary-info">
+                <span class="watchlist-label">
+                    Kelola Favorit
+                </span>
+
+                <h2>
+                    Tambah Negara Pantauan
+                </h2>
+
+                <p>
+                    Pilih negara yang ingin disimpan sebagai daftar pemantauan utama.
+                </p>
+            </div>
+
+            <form
+                method="POST"
+                action="{{ route('watchlist.store') }}"
+                class="watchlist-add-form"
+            >
+                @csrf
+
+                <div>
+                    <label
+                        for="country_id"
+                        class="form-label fw-bold"
+                    >
+                        Negara
+                    </label>
+
+                    <select
+                        name="country_id"
+                        id="country_id"
+                        class="form-select"
+                        @disabled($availableCountries->isEmpty())
+                    >
+                        @forelse ($availableCountries as $country)
+                            <option value="{{ $country->id }}">
+                                {{ $country->name }} ({{ $country->iso3_code }})
+                            </option>
+                        @empty
+                            <option value="">
+                                Semua negara sudah ada di favorit
+                            </option>
+                        @endforelse
+                    </select>
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                    @disabled($availableCountries->isEmpty())
+                >
+                    <i class="bi bi-bookmark-plus me-1"></i>
+                    Tambah Favorit
+                </button>
+            </form>
         </section>
 
         <section class="watchlist-summary-card">
@@ -183,7 +254,7 @@
                     </h3>
 
                     <p>
-                        Negara dengan skor risiko tertinggi.
+                        Negara favorit dengan skor risiko tertinggi.
                     </p>
                 </div>
 
@@ -231,6 +302,7 @@
                                     default => 'badge-risk-low',
                                 };
 
+                                $countryId = $item['country']['id'] ?? null;
                                 $iso3 = $item['country']['iso3_code'] ?? 'IDN';
                             @endphp
 
@@ -367,6 +439,24 @@
                                         >
                                             Berita
                                         </a>
+
+                                        @if ($countryId)
+                                            <form
+                                                method="POST"
+                                                action="{{ route('watchlist.destroy', $countryId) }}"
+                                                onsubmit="return confirm('Hapus negara ini dari favorit?')"
+                                            >
+                                                @csrf
+                                                @method('DELETE')
+
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                >
+                                                    Hapus
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -413,6 +503,19 @@
             gap: 20px;
             align-items: stretch;
             padding: 22px 24px;
+        }
+
+        .watchlist-add-form {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) 180px;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .watchlist-add-form .form-select,
+        .watchlist-add-form .btn {
+            height: 46px;
+            border-radius: 12px;
         }
 
         .watchlist-summary-info {
@@ -621,7 +724,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            min-width: 210px;
+            min-width: 255px;
         }
 
         .watchlist-action-buttons .btn {
@@ -655,7 +758,8 @@
             }
 
             .watchlist-summary-grid,
-            .risk-level-grid {
+            .risk-level-grid,
+            .watchlist-add-form {
                 grid-template-columns: 1fr;
             }
 

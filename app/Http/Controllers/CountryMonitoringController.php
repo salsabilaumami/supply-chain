@@ -9,6 +9,7 @@ use App\Models\NewsCache;
 use App\Models\NewsSentiment;
 use App\Models\RiskComponent;
 use App\Models\RiskScore;
+use App\Models\Watchlist;
 use App\Models\WeatherData;
 use App\Services\ExchangeRateService;
 use App\Services\NewsService;
@@ -63,9 +64,19 @@ class CountryMonitoringController extends Controller
             $countries
         );
 
+        $isFavorite = false;
+
+        if ($selectedCountry && $request->user()) {
+            $isFavorite = Watchlist::query()
+                ->where('user_id', $request->user()->id)
+                ->where('country_id', $selectedCountry->id)
+                ->exists();
+        }
+
         return view('countries.index', [
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
+            'isFavorite' => $isFavorite,
             'economicSummary' => $selectedCountry
                 ? $this->getEconomicSummary($selectedCountry)
                 : [],
@@ -95,12 +106,22 @@ class CountryMonitoringController extends Controller
             $countries
         );
 
+        $isFavorite = false;
+
+        if ($selectedCountry && $request->user()) {
+            $isFavorite = Watchlist::query()
+                ->where('user_id', $request->user()->id)
+                ->where('country_id', $selectedCountry->id)
+                ->exists();
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Data negara berhasil dimuat.',
             'selected_country' => $selectedCountry
                 ? $this->formatCountry($selectedCountry)
                 : null,
+            'is_favorite' => $isFavorite,
             'economic_indicators' => $selectedCountry
                 ? $this->getEconomicSummary($selectedCountry)
                 : [],
