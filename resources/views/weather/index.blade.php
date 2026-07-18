@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Pemantau Cuaca')
+@section('title', 'Weather Monitoring')
 
 @section('content')
     @php
@@ -10,7 +10,131 @@
             ($weatherRisk ?? 0) >= 25 => 'bg-info text-dark',
             default => 'bg-success',
         };
+
+        $alertColor = $weatherAlertColor ?? 'success';
+        $alertIcon = $weatherAlertIcon ?? 'bi-sun';
+        $alertLabel = $weatherAlertLabel ?? 'Normal';
+
+        $selectedLatitude = $selectedCountry->latitude ? (float) $selectedCountry->latitude : -2.5489;
+        $selectedLongitude = $selectedCountry->longitude ? (float) $selectedCountry->longitude : 118.0149;
     @endphp
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <style>
+        .weather-map {
+            width: 100%;
+            height: 360px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .weather-marker {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 16px;
+            border: 3px solid #ffffff;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+        }
+
+        .weather-marker.normal {
+            background: #198754;
+        }
+
+        .weather-marker.rain {
+            background: #0d6efd;
+        }
+
+        .weather-marker.strong_wind {
+            background: #ffc107;
+            color: #111827;
+        }
+
+        .weather-marker.storm,
+        .weather-marker.weather_risk {
+            background: #dc3545;
+        }
+
+        .weather-marker.selected {
+            width: 42px;
+            height: 42px;
+            font-size: 19px;
+            box-shadow: 0 12px 30px rgba(220, 53, 69, 0.38);
+        }
+
+        .weather-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .weather-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .weather-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .weather-legend-dot.normal {
+            background: #198754;
+        }
+
+        .weather-legend-dot.rain {
+            background: #0d6efd;
+        }
+
+        .weather-legend-dot.strong_wind {
+            background: #ffc107;
+        }
+
+        .weather-legend-dot.storm {
+            background: #dc3545;
+        }
+
+        .weather-alert-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .weather-alert-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 16px;
+            background: rgba(248, 250, 252, 0.7);
+        }
+
+        .weather-alert-name {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .weather-alert-meta {
+            font-size: 12px;
+            color: #64748b;
+        }
+    </style>
 
     <div class="dashboard-page">
         <section class="dashboard-header">
@@ -66,6 +190,14 @@
                         </button>
                     </noscript>
                 </div>
+
+                <a
+                    href="{{ route('weather.index', ['country' => $selectedCountry->iso3_code, 'refresh' => 1]) }}"
+                    class="btn btn-primary mt-2 w-100"
+                >
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                    Perbarui Cuaca
+                </a>
             </form>
         </section>
 
@@ -204,6 +336,21 @@
 
                 <div class="country-overview-stats">
                     <div class="country-stat">
+                        <span>Kondisi</span>
+
+                        <strong>
+                            <span class="badge text-bg-{{ $alertColor }}">
+                                <i class="bi {{ $alertIcon }} me-1"></i>
+                                {{ $alertLabel }}
+                            </span>
+                        </strong>
+
+                        <small>
+                            {{ $weatherDescription ?? 'Belum tersedia' }}
+                        </small>
+                    </div>
+
+                    <div class="country-stat">
                         <span>Kode Cuaca</span>
 
                         <strong>
@@ -211,7 +358,7 @@
                         </strong>
 
                         <small>
-                            {{ $weatherDescription ?? 'Belum tersedia' }}
+                            Kode kondisi
                         </small>
                     </div>
 
@@ -239,6 +386,47 @@
                             Riwayat tersimpan
                         </small>
                     </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="risk-analysis-grid mt-4">
+            <article
+                class="analysis-card"
+                style="grid-column: 1 / -1;"
+            >
+                <div class="analysis-heading">
+                    <h3>
+                        Peta Pemantauan Cuaca Global
+                    </h3>
+
+                    <p>
+                        Marker menampilkan kondisi cuaca negara yang sudah memiliki data tersimpan.
+                    </p>
+                </div>
+
+                <div id="weatherMap" class="weather-map"></div>
+
+                <div class="weather-legend">
+                    <span class="weather-legend-item">
+                        <span class="weather-legend-dot normal"></span>
+                        Normal
+                    </span>
+
+                    <span class="weather-legend-item">
+                        <span class="weather-legend-dot rain"></span>
+                        Hujan
+                    </span>
+
+                    <span class="weather-legend-item">
+                        <span class="weather-legend-dot strong_wind"></span>
+                        Angin Kencang
+                    </span>
+
+                    <span class="weather-legend-item">
+                        <span class="weather-legend-dot storm"></span>
+                        Badai Petir / Risiko Tinggi
+                    </span>
                 </div>
             </article>
         </section>
@@ -307,10 +495,25 @@
         </section>
 
         <section class="risk-analysis-grid mt-4">
-            <article
-                class="analysis-card"
-                style="grid-column: 1 / -1;"
-            >
+            <article class="analysis-card">
+                <div class="analysis-heading">
+                    <h3>
+                        Ringkasan Kondisi Global
+                    </h3>
+
+                    <p>
+                        Negara dengan risiko cuaca tertinggi dari data tersimpan.
+                    </p>
+                </div>
+
+                <div class="weather-alert-list" id="weatherAlertList">
+                    <div class="text-muted">
+                        Data ringkasan akan ditampilkan setelah peta dimuat.
+                    </div>
+                </div>
+            </article>
+
+            <article class="analysis-card">
                 <div class="analysis-heading">
                     <h3>
                         Riwayat Cuaca Terakhir
@@ -329,7 +532,7 @@
                                 <th>Temperatur</th>
                                 <th>Curah Hujan</th>
                                 <th>Angin</th>
-                                <th>Kode Cuaca</th>
+                                <th>Kode</th>
                                 <th>Risiko</th>
                             </tr>
                         </thead>
@@ -381,11 +584,22 @@
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script
         id="weatherChartData"
         type="application/json"
     >{!! json_encode($chartData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+
+    <script
+        id="selectedWeatherCountry"
+        type="application/json"
+    >{!! json_encode([
+        'name' => $selectedCountry->name,
+        'iso3_code' => $selectedCountry->iso3_code,
+        'latitude' => $selectedLatitude,
+        'longitude' => $selectedLongitude,
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -397,17 +611,21 @@
                 progressBar.style.width = width + '%';
             });
 
-            if (typeof Chart === 'undefined') {
-                return;
-            }
-
             var chartDataElement = document.getElementById('weatherChartData');
+            var selectedCountryElement = document.getElementById('selectedWeatherCountry');
             var chartData = {};
+            var selectedCountry = {};
 
             try {
                 chartData = JSON.parse(chartDataElement.textContent || '{}');
             } catch (error) {
                 chartData = {};
+            }
+
+            try {
+                selectedCountry = JSON.parse(selectedCountryElement.textContent || '{}');
+            } catch (error) {
+                selectedCountry = {};
             }
 
             function getChartLabels(groupName) {
@@ -435,7 +653,7 @@
             function createBarChart(canvasId, label, labels, values) {
                 var canvas = document.getElementById(canvasId);
 
-                if (!canvas) {
+                if (!canvas || typeof Chart === 'undefined') {
                     return;
                 }
 
@@ -509,6 +727,143 @@
                 });
             }
 
+            function markerIcon(point) {
+                var type = point.alert_type || 'normal';
+                var icon = point.alert_icon || 'bi-sun';
+                var selectedClass = point.is_selected ? ' selected' : '';
+
+                return L.divIcon({
+                    html: '<div class="weather-marker ' + type + selectedClass + '"><i class="bi ' + icon + '"></i></div>',
+                    className: '',
+                    iconSize: point.is_selected ? [42, 42] : [34, 34],
+                    iconAnchor: point.is_selected ? [21, 21] : [17, 17],
+                    popupAnchor: [0, -18]
+                });
+            }
+
+            function renderWeatherMap() {
+                var mapElement = document.getElementById('weatherMap');
+
+                if (!mapElement || typeof L === 'undefined') {
+                    return;
+                }
+
+                var centerLatitude = selectedCountry.latitude || -2.5489;
+                var centerLongitude = selectedCountry.longitude || 118.0149;
+
+                var map = L.map('weatherMap', {
+                    scrollWheelZoom: false
+                }).setView([centerLatitude, centerLongitude], 4);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 18,
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(map);
+
+                var points = Array.isArray(chartData.mapPoints) ? chartData.mapPoints : [];
+
+                if (points.length === 0 && selectedCountry.latitude && selectedCountry.longitude) {
+                    points = [
+                        {
+                            name: selectedCountry.name || 'Negara terpilih',
+                            iso3_code: selectedCountry.iso3_code || '-',
+                            latitude: selectedCountry.latitude,
+                            longitude: selectedCountry.longitude,
+                            temperature: 0,
+                            precipitation: 0,
+                            wind_speed: 0,
+                            weather_risk: 0,
+                            weather_description: 'Belum tersedia',
+                            risk_label: 'Belum tersedia',
+                            alert_type: 'normal',
+                            alert_label: 'Normal',
+                            alert_icon: 'bi-sun',
+                            is_selected: true,
+                            recorded_at: '-'
+                        }
+                    ];
+                }
+
+                var bounds = [];
+
+                points.forEach(function (point) {
+                    if (!point.latitude || !point.longitude) {
+                        return;
+                    }
+
+                    var marker = L.marker(
+                        [point.latitude, point.longitude],
+                        {
+                            icon: markerIcon(point)
+                        }
+                    ).addTo(map);
+
+                    marker.bindPopup(
+                        '<strong>' + point.name + ' (' + point.iso3_code + ')</strong><br>' +
+                        'Kondisi: ' + point.alert_label + '<br>' +
+                        'Cuaca: ' + point.weather_description + '<br>' +
+                        'Temperatur: ' + point.temperature + '°C<br>' +
+                        'Hujan: ' + point.precipitation + ' mm<br>' +
+                        'Angin: ' + point.wind_speed + ' km/jam<br>' +
+                        'Risiko: ' + point.weather_risk
+                    );
+
+                    bounds.push([point.latitude, point.longitude]);
+                });
+
+                if (bounds.length > 1) {
+                    map.fitBounds(bounds, {
+                        padding: [30, 30]
+                    });
+                }
+
+                setTimeout(function () {
+                    map.invalidateSize();
+                }, 300);
+            }
+
+            function renderAlertList() {
+                var listElement = document.getElementById('weatherAlertList');
+
+                if (!listElement) {
+                    return;
+                }
+
+                var points = Array.isArray(chartData.mapPoints) ? chartData.mapPoints : [];
+
+                if (points.length === 0) {
+                    listElement.innerHTML = '<div class="text-muted">Belum ada data cuaca global tersimpan.</div>';
+                    return;
+                }
+
+                var topPoints = points
+                    .slice()
+                    .sort(function (a, b) {
+                        return (b.weather_risk || 0) - (a.weather_risk || 0);
+                    })
+                    .slice(0, 5);
+
+                listElement.innerHTML = topPoints.map(function (point) {
+                    var color = point.alert_color || 'success';
+
+                    return (
+                        '<div class="weather-alert-item">' +
+                            '<div>' +
+                                '<div class="weather-alert-name">' + point.name + '</div>' +
+                                '<div class="weather-alert-meta">' +
+                                    point.alert_label + ' • ' +
+                                    point.temperature + '°C • ' +
+                                    point.wind_speed + ' km/jam' +
+                                '</div>' +
+                            '</div>' +
+                            '<span class="badge text-bg-' + color + '">' +
+                                point.weather_risk +
+                            '</span>' +
+                        '</div>'
+                    );
+                }).join('');
+            }
+
             createBarChart(
                 'weatherTemperatureChart',
                 'Temperatur',
@@ -536,6 +891,9 @@
                 getChartLabels('risk'),
                 getChartValues('risk')
             );
+
+            renderWeatherMap();
+            renderAlertList();
         });
     </script>
 @endpush

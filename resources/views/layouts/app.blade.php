@@ -9,7 +9,7 @@
     >
 
     <title>
-        @yield('title', 'Tinjauan Global') | Supply Chain Risk Intelligence
+        @yield('title', 'Global Overview') | Supply Chain Risk Intelligence
     </title>
 
     @vite([
@@ -36,11 +36,11 @@
 
                 <div class="brand-copy">
                     <h1 class="brand-title">
-                        Rantai Pasokan
+                        Supply Chain
                     </h1>
 
                     <p class="brand-subtitle">
-                        Intelijen Risiko
+                        Risk Intelligence
                     </p>
                 </div>
             </div>
@@ -49,7 +49,7 @@
             <nav class="sidebar-nav">
 
                 <div class="nav-section">
-                    KECERDASAN
+                    INTELLIGENCE
                 </div>
 
                 <a
@@ -59,7 +59,7 @@
                     <i class="bi bi-grid-1x2"></i>
 
                     <span>
-                        Tinjauan Global
+                        Global Overview
                     </span>
                 </a>
 
@@ -70,7 +70,7 @@
                     <i class="bi bi-globe2"></i>
 
                     <span>
-                        Pemantau Negara
+                        Country Monitoring
                     </span>
                 </a>
 
@@ -81,7 +81,7 @@
                     <i class="bi bi-cloud-lightning-rain"></i>
 
                     <span>
-                        Pemantau Cuaca
+                        Weather Monitoring
                     </span>
                 </a>
 
@@ -92,7 +92,7 @@
                     <i class="bi bi-currency-exchange"></i>
 
                     <span>
-                        Dampak Mata Uang
+                        Currency Impact
                     </span>
                 </a>
 
@@ -103,12 +103,12 @@
                     <i class="bi bi-newspaper"></i>
 
                     <span>
-                        Intelijen Berita
+                        News Intelligence
                     </span>
                 </a>
 
                 <div class="nav-section">
-                    LOGISTIK
+                    LOGISTICS
                 </div>
 
                 <a
@@ -118,7 +118,7 @@
                     <i class="bi bi-geo-alt"></i>
 
                     <span>
-                        Pelabuhan Global
+                        Global Ports
                     </span>
                 </a>
 
@@ -129,7 +129,7 @@
                     <i class="bi bi-arrow-left-right"></i>
 
                     <span>
-                        Perbandingan Negara
+                        Country Comparison
                     </span>
                 </a>
 
@@ -141,7 +141,7 @@
                         <i class="bi bi-bookmark-star"></i>
 
                         <span>
-                            Favorit Pemantauan
+                            Favorite Monitoring List
                         </span>
                     </a>
                 @else
@@ -153,14 +153,14 @@
                         <i class="bi bi-bookmark-star"></i>
 
                         <span>
-                            Favorit Pemantauan
+                            Favorite Monitoring List
                         </span>
                     </a>
                 @endif
 
                 @if (auth()->user()?->isAdmin())
                     <div class="nav-section">
-                        SISTEM
+                        SYSTEM
                     </div>
 
                     <a
@@ -170,7 +170,7 @@
                         <i class="bi bi-sliders"></i>
 
                         <span>
-                            Dasbor Admin
+                            Admin Dashboard
                         </span>
                     </a>
                 @endif
@@ -193,7 +193,7 @@
                         <span>
                             {{ auth()->user()->isAdmin()
                                 ? 'Administrator'
-                                : 'Pengguna'
+                                : 'User'
                             }}
                         </span>
                     </div>

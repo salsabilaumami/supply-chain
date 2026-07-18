@@ -4,12 +4,15 @@ namespace App\Services;
 
 use App\Models\Country;
 use App\Models\EconomicIndicator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class WorldBankService
 {
     private const API_URL = 'https://api.worldbank.org/v2';
+
+    private const START_YEAR = 2015;
 
     private const INDICATORS = [
         'gdp' => [
@@ -42,46 +45,45 @@ class WorldBankService
             );
         }
 
-        $apiResults = $this->getCountryIndicators($country->iso3_code);
-
         $synced = 0;
         $skipped = 0;
         $skippedIndicators = [];
 
         foreach (self::INDICATORS as $key => $indicator) {
-            $data = $apiResults[$key] ?? null;
+            $rows = $this->getIndicatorHistory(
+                $country->iso3_code,
+                $indicator['code']
+            );
 
-            if (
-                !is_array($data) ||
-                $data['value'] === null ||
-                $data['year'] === null
-            ) {
+            if ($rows->isEmpty()) {
                 $skipped++;
 
                 $skippedIndicators[] = [
                     'indicator' => $indicator['name'],
                     'code' => $indicator['code'],
-                    'reason' => 'Tidak ada data tersedia',
+                    'reason' => 'Tidak ada data tersedia dari World Bank',
                 ];
 
                 continue;
             }
 
-            EconomicIndicator::updateOrCreate(
-                [
-                    'country_id' => $country->id,
-                    'indicator_code' => $indicator['code'],
-                    'year' => $data['year'],
-                ],
-                [
-                    'indicator_name' => $indicator['name'],
-                    'value' => $data['value'],
-                    'source' => 'World Bank',
-                    'fetched_at' => now(),
-                ]
-            );
+            foreach ($rows as $row) {
+                EconomicIndicator::updateOrCreate(
+                    [
+                        'country_id' => $country->id,
+                        'indicator_code' => $indicator['code'],
+                        'year' => $row['year'],
+                    ],
+                    [
+                        'indicator_name' => $indicator['name'],
+                        'value' => $row['value'],
+                        'source' => 'World Bank',
+                        'fetched_at' => now(),
+                    ]
+                );
 
-            $synced++;
+                $synced++;
+            }
         }
 
         return [
@@ -113,23 +115,71 @@ class WorldBankService
         return $results;
     }
 
+    public function getCountryIndicatorHistory(string $iso3Code): array
+    {
+        $iso3Code = strtoupper(trim($iso3Code));
+
+        if (strlen($iso3Code) !== 3) {
+            throw new RuntimeException('Kode ISO3 negara tidak valid.');
+        }
+
+        $results = [];
+
+        foreach (self::INDICATORS as $key => $indicator) {
+            $results[$key] = $this->getIndicatorHistory(
+                $iso3Code,
+                $indicator['code']
+            )->values()->all();
+        }
+
+        return $results;
+    }
+
     private function getLatestIndicator(
         string $iso3Code,
         string $indicatorCode
     ): array {
+        $history = $this->getIndicatorHistory(
+            $iso3Code,
+            $indicatorCode
+        );
+
+        $latestData = $history
+            ->sortByDesc('year')
+            ->first();
+
+        if (!$latestData) {
+            return [
+                'indicator_code' => $indicatorCode,
+                'value' => null,
+                'year' => null,
+            ];
+        }
+
+        return [
+            'indicator_code' => $indicatorCode,
+            'value' => (float) $latestData['value'],
+            'year' => (int) $latestData['year'],
+        ];
+    }
+
+    private function getIndicatorHistory(
+        string $iso3Code,
+        string $indicatorCode
+    ): Collection {
         $response = Http::timeout(60)
             ->retry(3, 1000)
             ->acceptJson()
             ->get(
                 self::API_URL
                 . '/country/'
-                . $iso3Code
+                . strtoupper($iso3Code)
                 . '/indicator/'
                 . $indicatorCode,
                 [
                     'format' => 'json',
-                    'per_page' => 20,
-                    'date' => '2015:' . now()->year,
+                    'per_page' => 100,
+                    'date' => self::START_YEAR . ':' . now()->year,
                 ]
             );
 
@@ -149,30 +199,23 @@ class WorldBankService
             !isset($payload[1]) ||
             !is_array($payload[1])
         ) {
-            return [
-                'indicator_code' => $indicatorCode,
-                'value' => null,
-                'year' => null,
-            ];
+            return collect();
         }
 
-        $latestData = collect($payload[1])
-            ->first(function ($item) {
-                return isset($item['value']) && $item['value'] !== null;
-            });
-
-        if (!$latestData) {
-            return [
-                'indicator_code' => $indicatorCode,
-                'value' => null,
-                'year' => null,
-            ];
-        }
-
-        return [
-            'indicator_code' => $indicatorCode,
-            'value' => (float) $latestData['value'],
-            'year' => (int) $latestData['date'],
-        ];
+        return collect($payload[1])
+            ->filter(function ($item) {
+                return isset($item['value'], $item['date'])
+                    && $item['value'] !== null
+                    && $item['date'] !== null;
+            })
+            ->map(function ($item) use ($indicatorCode) {
+                return [
+                    'indicator_code' => $indicatorCode,
+                    'value' => (float) $item['value'],
+                    'year' => (int) $item['date'],
+                ];
+            })
+            ->sortBy('year')
+            ->values();
     }
 }

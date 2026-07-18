@@ -65,8 +65,11 @@ class WeatherController extends Controller
                 'weather_description' => $data['weatherDescription'],
                 'weather_risk' => $data['weatherRisk'],
                 'risk_label' => $data['riskLabel'],
+                'weather_alert_type' => $data['weatherAlertType'],
+                'weather_alert_label' => $data['weatherAlertLabel'],
                 'last_update' => $data['lastUpdate'],
             ],
+            'map_points' => $data['mapPoints'],
             'chart_data' => $data['chartData'],
         ]);
     }
@@ -97,18 +100,13 @@ class WeatherController extends Controller
             $selectedCountry = $countries->firstOrFail();
         }
 
-        /*
-         |--------------------------------------------------------------------------
-         | REAL-TIME OPEN-METEO
-         |--------------------------------------------------------------------------
-         | Setiap halaman /weather atau /api/weather dibuka,
-         | sistem mencoba mengambil cuaca terbaru dari Open-Meteo API.
-         | Jika API gagal, sistem tetap memakai data terakhir dari database.
-         |--------------------------------------------------------------------------
-         */
+        
+        $forceRefresh = $request->boolean('refresh', false);
+
         $weatherData = $this->getRealtimeWeather(
             $selectedCountry,
-            $weatherService
+            $weatherService,
+            $forceRefresh
         );
 
         $history = WeatherData::query()
@@ -147,6 +145,13 @@ class WeatherController extends Controller
 
         $riskLabel = $this->riskScoreLabel($weatherRisk);
 
+        $weatherAlert = $this->buildWeatherAlert(
+            $weatherCode,
+            $precipitation,
+            $windSpeed,
+            $weatherRisk
+        );
+
         $lastUpdate = $weatherAvailable
             ? $weatherData->recorded_at?->format('d M Y H:i')
             : null;
@@ -184,6 +189,11 @@ class WeatherController extends Controller
             $chartRisk = [0];
         }
 
+        $mapPoints = $this->buildMapPoints(
+            $selectedCountry,
+            $weatherData
+        );
+
         return [
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
@@ -199,7 +209,13 @@ class WeatherController extends Controller
             'weatherDescription' => $weatherDescription,
             'weatherRisk' => $weatherRisk,
             'riskLabel' => $riskLabel,
+            'weatherAlertType' => $weatherAlert['type'],
+            'weatherAlertLabel' => $weatherAlert['label'],
+            'weatherAlertColor' => $weatherAlert['color'],
+            'weatherAlertIcon' => $weatherAlert['icon'],
             'lastUpdate' => $lastUpdate,
+
+            'mapPoints' => $mapPoints,
 
             'chartData' => [
                 'temperature' => [
@@ -218,25 +234,160 @@ class WeatherController extends Controller
                     'labels' => $chartLabels,
                     'values' => $chartRisk,
                 ],
+                'mapPoints' => $mapPoints,
             ],
         ];
     }
 
     private function getRealtimeWeather(
         Country $country,
-        WeatherService $weatherService
+        WeatherService $weatherService,
+        bool $forceRefresh = false
     ): ?WeatherData {
         try {
             return $weatherService->getCurrentWeather(
                 $country,
-                true
+                $forceRefresh
             );
-        } catch (Throwable $exception) {
+        } catch (Throwable) {
             return WeatherData::query()
                 ->where('country_id', $country->id)
                 ->latest('recorded_at')
                 ->first();
         }
+    }
+
+    private function buildMapPoints(
+        Country $selectedCountry,
+        ?WeatherData $selectedWeather
+    ): array {
+        $latestWeatherIds = WeatherData::query()
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('country_id')
+            ->pluck('id')
+            ->filter()
+            ->values();
+
+        $latestWeather = WeatherData::query()
+            ->whereIn('id', $latestWeatherIds)
+            ->get()
+            ->keyBy('country_id');
+
+        if ($selectedWeather) {
+            $latestWeather->put($selectedCountry->id, $selectedWeather);
+        }
+
+        if ($latestWeather->isEmpty()) {
+            return [];
+        }
+
+        $countries = Country::query()
+            ->whereIn('id', $latestWeather->keys()->values()->all())
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get()
+            ->keyBy('id');
+
+        return $latestWeather
+            ->map(function (WeatherData $weather) use ($countries, $selectedCountry) {
+                $country = $countries->get($weather->country_id);
+
+                if (!$country) {
+                    return null;
+                }
+
+                $weatherCode = (int) $weather->weather_code;
+                $precipitation = round((float) $weather->precipitation, 2);
+                $windSpeed = round((float) $weather->wind_speed, 2);
+                $weatherRisk = round((float) $weather->weather_risk, 2);
+
+                $alert = $this->buildWeatherAlert(
+                    $weatherCode,
+                    $precipitation,
+                    $windSpeed,
+                    $weatherRisk
+                );
+
+                return [
+                    'country_id' => $country->id,
+                    'name' => $country->name,
+                    'iso2_code' => $country->iso2_code,
+                    'iso3_code' => $country->iso3_code,
+                    'capital' => $country->capital,
+                    'latitude' => (float) $country->latitude,
+                    'longitude' => (float) $country->longitude,
+                    'temperature' => round((float) $weather->temperature, 2),
+                    'precipitation' => $precipitation,
+                    'wind_speed' => $windSpeed,
+                    'weather_code' => $weatherCode,
+                    'weather_description' => $this->describeWeatherCode($weatherCode),
+                    'weather_risk' => $weatherRisk,
+                    'risk_label' => $this->riskScoreLabel($weatherRisk),
+                    'alert_type' => $alert['type'],
+                    'alert_label' => $alert['label'],
+                    'alert_color' => $alert['color'],
+                    'alert_icon' => $alert['icon'],
+                    'is_selected' => $country->id === $selectedCountry->id,
+                    'recorded_at' => $weather->recorded_at?->format('d M Y H:i'),
+                ];
+            })
+            ->filter()
+            ->sortByDesc('weather_risk')
+            ->values()
+            ->all();
+    }
+
+    private function buildWeatherAlert(
+        int $weatherCode,
+        float $precipitation,
+        float $windSpeed,
+        float $weatherRisk
+    ): array {
+        if (in_array($weatherCode, [95, 96, 99], true)) {
+            return [
+                'type' => 'storm',
+                'label' => 'Badai Petir',
+                'color' => 'danger',
+                'icon' => 'bi-cloud-lightning-rain',
+            ];
+        }
+
+        if ($windSpeed >= 35) {
+            return [
+                'type' => 'strong_wind',
+                'label' => 'Angin Kencang',
+                'color' => 'warning',
+                'icon' => 'bi-wind',
+            ];
+        }
+
+        if (
+            $precipitation > 0 ||
+            in_array($weatherCode, [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82], true)
+        ) {
+            return [
+                'type' => 'rain',
+                'label' => 'Hujan',
+                'color' => 'primary',
+                'icon' => 'bi-cloud-rain-heavy',
+            ];
+        }
+
+        if ($weatherRisk >= 50) {
+            return [
+                'type' => 'weather_risk',
+                'label' => 'Risiko Cuaca Tinggi',
+                'color' => 'danger',
+                'icon' => 'bi-exclamation-triangle',
+            ];
+        }
+
+        return [
+            'type' => 'normal',
+            'label' => 'Normal',
+            'color' => 'success',
+            'icon' => 'bi-sun',
+        ];
     }
 
     private function formatWeather(?WeatherData $weatherData): ?array
@@ -245,16 +396,32 @@ class WeatherController extends Controller
             return null;
         }
 
+        $weatherCode = (int) $weatherData->weather_code;
+        $precipitation = round((float) $weatherData->precipitation, 2);
+        $windSpeed = round((float) $weatherData->wind_speed, 2);
+        $weatherRisk = round((float) $weatherData->weather_risk, 2);
+
+        $alert = $this->buildWeatherAlert(
+            $weatherCode,
+            $precipitation,
+            $windSpeed,
+            $weatherRisk
+        );
+
         return [
             'id' => $weatherData->id,
             'country_id' => $weatherData->country_id,
-            'temperature' => (float) $weatherData->temperature,
-            'precipitation' => (float) $weatherData->precipitation,
-            'wind_speed' => (float) $weatherData->wind_speed,
-            'weather_code' => (int) $weatherData->weather_code,
-            'weather_description' => $this->describeWeatherCode((int) $weatherData->weather_code),
-            'weather_risk' => (float) $weatherData->weather_risk,
-            'risk_label' => $this->riskScoreLabel((float) $weatherData->weather_risk),
+            'temperature' => round((float) $weatherData->temperature, 2),
+            'precipitation' => $precipitation,
+            'wind_speed' => $windSpeed,
+            'weather_code' => $weatherCode,
+            'weather_description' => $this->describeWeatherCode($weatherCode),
+            'weather_risk' => $weatherRisk,
+            'risk_label' => $this->riskScoreLabel($weatherRisk),
+            'alert_type' => $alert['type'],
+            'alert_label' => $alert['label'],
+            'alert_color' => $alert['color'],
+            'alert_icon' => $alert['icon'],
             'recorded_at' => $weatherData->recorded_at?->toDateTimeString(),
             'fetched_at' => $weatherData->fetched_at?->toDateTimeString(),
         ];

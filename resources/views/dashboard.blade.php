@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tinjauan Global')
+@section('title', 'Global Overview')
 
 @section('content')
     @php
@@ -587,9 +587,61 @@
                     <h3>
                         Visualisasi Tinjauan Global
                     </h3>
+
+                    <p class="text-muted mb-0">
+                        Grafik ini menampilkan tren ekonomi, kurs, dan risiko negara yang dipilih.
+                    </p>
                 </div>
 
                 <div class="row g-3">
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                GDP Trend
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardGdpTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Inflation Trend
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardInflationTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Currency Trend
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardCurrencyTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <h5 class="fw-bold mb-3">
+                                Risk Trend
+                            </h5>
+
+                            <div style="height: 190px;">
+                                <canvas id="dashboardRiskTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="col-12 col-xl-6">
                         <div class="border rounded-4 p-3 h-100">
                             <h5 class="fw-bold mb-3">
@@ -605,22 +657,10 @@
                     <div class="col-12 col-xl-6">
                         <div class="border rounded-4 p-3 h-100">
                             <h5 class="fw-bold mb-3">
-                                Grafik Indikator Ekonomi
+                                Risk Score Antarnegara
                             </h5>
 
                             <div style="height: 190px;">
-                                <canvas id="dashboardEconomicChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <div class="border rounded-4 p-3 h-100">
-                            <h5 class="fw-bold mb-3">
-                                Grafik Risk Score Antarnegara
-                            </h5>
-
-                            <div style="height: 200px;">
                                 <canvas id="dashboardGlobalRiskChart"></canvas>
                             </div>
                         </div>
@@ -923,18 +963,102 @@
                 });
             }
 
+            function createLineChart(canvasId, label, labels, values) {
+                var canvas = document.getElementById(canvasId);
+
+                if (!canvas) {
+                    return;
+                }
+
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label,
+                                data: values,
+                                borderWidth: 2,
+                                tension: 0.35,
+                                pointRadius: 3,
+                                pointHoverRadius: 5,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: {
+                            padding: 0
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    boxWidth: 12,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            createLineChart(
+                'dashboardGdpTrendChart',
+                'GDP Trend',
+                getChartLabels('gdpTrend'),
+                getChartValues('gdpTrend')
+            );
+
+            createLineChart(
+                'dashboardInflationTrendChart',
+                'Inflation Trend',
+                getChartLabels('inflationTrend'),
+                getChartValues('inflationTrend')
+            );
+
+            createLineChart(
+                'dashboardCurrencyTrendChart',
+                'Currency Trend',
+                getChartLabels('currencyTrend'),
+                getChartValues('currencyTrend')
+            );
+
+            createLineChart(
+                'dashboardRiskTrendChart',
+                'Risk Trend',
+                getChartLabels('riskTrend'),
+                getChartValues('riskTrend')
+            );
+
             createBarChart(
                 'dashboardRiskComponentChart',
                 'Komponen Risiko',
                 getChartLabels('riskComponents'),
                 getChartValues('riskComponents')
-            );
-
-            createBarChart(
-                'dashboardEconomicChart',
-                'Indikator Ekonomi',
-                getChartLabels('economic'),
-                getChartValues('economic')
             );
 
             createBarChart(

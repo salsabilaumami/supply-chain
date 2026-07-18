@@ -105,35 +105,40 @@ class DashboardController extends Controller
         );
 
         $newsSummary = $this->getNewsSummary($selectedCountry);
-        $latestRiskScore = $this->getLatestRiskScore($selectedCountry);
 
-        $weatherScore = $latestRiskScore
-            ? (float) $latestRiskScore->weather_score
-            : $this->resolveWeatherScore($weatherData);
+        $weatherScore = $this->resolveWeatherScore($weatherData);
 
-        $inflationScore = $latestRiskScore
-            ? (float) $latestRiskScore->inflation_score
-            : $this->resolveInflationScore(
-                $economicData['inflation']['value'],
-                $riskScoringService
-            );
+        $inflationScore = $this->resolveInflationScore(
+            $economicData['inflation']['value'],
+            $riskScoringService
+        );
 
-        $currencyScore = $latestRiskScore
-            ? (float) $latestRiskScore->currency_score
-            : $this->resolveCurrencyScore(
-                $exchangeRate,
-                $riskScoringService
-            );
+        $currencyScore = $this->resolveCurrencyScore(
+            $exchangeRate,
+            $riskScoringService
+        );
 
-        $newsScore = $latestRiskScore
-            ? (float) $latestRiskScore->news_score
-            : $this->resolveNewsScore($newsSummary);
+        $newsScore = $this->resolveNewsScore($newsSummary);
 
         $totalScore = $riskScoringService->calculateTotalScore(
             $weatherScore,
             $inflationScore,
             $currencyScore,
             $newsScore
+        );
+
+        $riskLevel = $this->normalizeRiskLevel(
+            $riskScoringService->determineRiskLevel($totalScore)
+        );
+
+        $latestRiskScore = $this->storeDailyRiskScore(
+            $selectedCountry,
+            $weatherScore,
+            $inflationScore,
+            $currencyScore,
+            $newsScore,
+            $totalScore,
+            $riskLevel
         );
 
         $weatherLevel = $this->normalizeRiskLevel(
@@ -150,10 +155,6 @@ class DashboardController extends Controller
 
         $newsLevel = $this->normalizeRiskLevel(
             $riskScoringService->determineRiskLevel($newsScore)
-        );
-
-        $riskLevel = $this->normalizeRiskLevel(
-            $riskScoringService->determineRiskLevel($totalScore)
         );
 
         $globalSummary = $this->getGlobalSummary();
@@ -188,6 +189,20 @@ class DashboardController extends Controller
                 'labels' => $globalSummary['risk_chart_labels'],
                 'values' => $globalSummary['risk_chart_values'],
             ],
+            'gdpTrend' => $this->buildEconomicTrend(
+                $selectedCountry,
+                'NY.GDP.MKTP.CD',
+                1000000000000,
+                8
+            ),
+            'inflationTrend' => $this->buildEconomicTrend(
+                $selectedCountry,
+                'FP.CPI.TOTL.ZG',
+                1,
+                8
+            ),
+            'currencyTrend' => $this->buildCurrencyTrend($selectedCountry, 14),
+            'riskTrend' => $this->buildRiskTrend($selectedCountry, 10),
         ];
 
         return [
@@ -302,14 +317,6 @@ class DashboardController extends Controller
             ->first();
     }
 
-    private function getLatestRiskScore(Country $country): ?RiskScore
-    {
-        return RiskScore::query()
-            ->where('country_id', $country->id)
-            ->latest('calculated_at')
-            ->first();
-    }
-
     private function getNewsSummary(Country $country): array
     {
         $sentiments = NewsSentiment::query()
@@ -328,6 +335,137 @@ class DashboardController extends Controller
             'average_risk_score' => $sentiments->isNotEmpty()
                 ? round((float) $sentiments->avg('risk_score'), 2)
                 : 0.0,
+        ];
+    }
+
+    private function storeDailyRiskScore(
+        Country $country,
+        float $weatherScore,
+        float $inflationScore,
+        float $currencyScore,
+        float $newsScore,
+        float $totalScore,
+        string $riskLevel
+    ): RiskScore {
+        $riskScore = RiskScore::query()
+            ->where('country_id', $country->id)
+            ->whereDate('calculated_at', now()->toDateString())
+            ->latest('calculated_at')
+            ->first();
+
+        if (!$riskScore) {
+            $riskScore = new RiskScore();
+            $riskScore->country_id = $country->id;
+        }
+
+        $riskScore->weather_score = round($weatherScore, 2);
+        $riskScore->inflation_score = round($inflationScore, 2);
+        $riskScore->currency_score = round($currencyScore, 2);
+        $riskScore->news_score = round($newsScore, 2);
+        $riskScore->total_score = round($totalScore, 2);
+        $riskScore->risk_level = $riskLevel;
+        $riskScore->calculated_at = now();
+        $riskScore->save();
+
+        return $riskScore;
+    }
+
+    private function buildEconomicTrend(
+        Country $country,
+        string $indicatorCode,
+        float $divisor = 1,
+        int $limit = 8
+    ): array {
+        $rows = EconomicIndicator::query()
+            ->where('country_id', $country->id)
+            ->where('indicator_code', $indicatorCode)
+            ->whereNotNull('value')
+            ->orderByDesc('year')
+            ->limit($limit)
+            ->get()
+            ->sortBy('year')
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return [
+                'labels' => ['Belum ada data'],
+                'values' => [0],
+            ];
+        }
+
+        return [
+            'labels' => $rows
+                ->map(fn (EconomicIndicator $indicator) => (string) $indicator->year)
+                ->values()
+                ->all(),
+            'values' => $rows
+                ->map(fn (EconomicIndicator $indicator) => round((float) $indicator->value / $divisor, 2))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function buildCurrencyTrend(
+        Country $country,
+        int $limit = 14
+    ): array {
+        $rows = ExchangeRate::query()
+            ->where('country_id', $country->id)
+            ->where('base_currency', 'USD')
+            ->where('target_currency', $country->currency_code)
+            ->orderByDesc('recorded_at')
+            ->limit($limit)
+            ->get()
+            ->sortBy('recorded_at')
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return [
+                'labels' => ['Belum ada data'],
+                'values' => [0],
+            ];
+        }
+
+        return [
+            'labels' => $rows
+                ->map(fn (ExchangeRate $rate) => $rate->recorded_at?->format('d M') ?? '-')
+                ->values()
+                ->all(),
+            'values' => $rows
+                ->map(fn (ExchangeRate $rate) => round((float) $rate->rate, 4))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function buildRiskTrend(
+        Country $country,
+        int $limit = 10
+    ): array {
+        $rows = RiskScore::query()
+            ->where('country_id', $country->id)
+            ->orderByDesc('calculated_at')
+            ->limit($limit)
+            ->get()
+            ->sortBy('calculated_at')
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return [
+                'labels' => ['Belum ada data'],
+                'values' => [0],
+            ];
+        }
+
+        return [
+            'labels' => $rows
+                ->map(fn (RiskScore $riskScore) => $riskScore->calculated_at?->format('d M') ?? '-')
+                ->values()
+                ->all(),
+            'values' => $rows
+                ->map(fn (RiskScore $riskScore) => round((float) $riskScore->total_score, 2))
+                ->values()
+                ->all(),
         ];
     }
 
