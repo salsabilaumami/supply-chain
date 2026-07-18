@@ -10,10 +10,13 @@ return new class extends Migration
     {
         Schema::create('positive_words', function (Blueprint $table) {
             $table->id();
-            $table->string('word', 100)->unique();
+            $table->string('word', 100);
             $table->string('language', 10)->default('en');
             $table->decimal('weight', 5, 2)->default(1);
             $table->timestamps();
+
+            $table->unique(['word', 'language']);
+            $table->index('word');
         });
     }
 

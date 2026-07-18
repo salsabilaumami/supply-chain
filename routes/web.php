@@ -90,22 +90,34 @@ Route::middleware('auth')->group(function () {
         ->name('api.comparison.show');
 
     Route::get('/watchlist', [WatchlistController::class, 'index'])
-    ->name('watchlist.index');
+        ->name('watchlist.index');
 
     Route::post('/watchlist', [WatchlistController::class, 'store'])
-    ->name('watchlist.store');
+        ->name('watchlist.store');
 
     Route::delete('/watchlist/{country}', [WatchlistController::class, 'destroy'])
-    ->name('watchlist.destroy');
+        ->name('watchlist.destroy');
 
     Route::get('/api/watchlist', [WatchlistController::class, 'show'])
-    ->name('api.watchlist.show');
-    
+        ->name('api.watchlist.show');
+
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
 
     Route::middleware('admin')->group(function () {
         Route::get('/admin', [AdminDashboardController::class, 'index'])
             ->name('admin.dashboard');
+
+        Route::patch('/admin/users/{user}/status', [AdminDashboardController::class, 'updateUserStatus'])
+            ->name('admin.users.update-status');
+
+        Route::delete('/admin/users/{user}', [AdminDashboardController::class, 'destroyUser'])
+            ->name('admin.users.destroy');
+
+        Route::delete('/admin/ports/{globalPort}', [AdminDashboardController::class, 'destroyPort'])
+            ->name('admin.ports.destroy');
+
+        Route::delete('/admin/news/{newsCache}', [AdminDashboardController::class, 'destroyNews'])
+            ->name('admin.news.destroy');
     });
 });

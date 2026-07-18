@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Country;
+use App\Models\NegativeWord;
 use App\Models\NewsCache;
 use App\Models\NewsSentiment;
+use App\Models\PositiveWord;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -234,7 +236,101 @@ class NewsService
             )
         );
 
-        $negativeKeywords = [
+        $positiveKeywords = $this->getPositiveKeywords();
+        $negativeKeywords = $this->getNegativeKeywords();
+
+        $positiveScore = $this->countKeywordHits(
+            $text,
+            $positiveKeywords
+        );
+
+        $negativeScore = $this->countKeywordHits(
+            $text,
+            $negativeKeywords
+        );
+
+        $neutralScore = max(1, 10 - abs($negativeScore - $positiveScore));
+
+        $sentiment = match (true) {
+            $negativeScore > $positiveScore => 'negative',
+            $positiveScore > $negativeScore => 'positive',
+            default => 'neutral',
+        };
+
+        $riskScore = match ($sentiment) {
+            'negative' => min(90, 45 + ($negativeScore * 8)),
+            'positive' => max(10, 35 - ($positiveScore * 4)),
+            default => 35,
+        };
+
+        return [
+            'sentiment' => $sentiment,
+            'positive_score' => $positiveScore,
+            'negative_score' => $negativeScore,
+            'neutral_score' => $neutralScore,
+            'risk_score' => round((float) $riskScore, 2),
+        ];
+    }
+
+    private function getPositiveKeywords(): array
+    {
+        if (Schema::hasTable('positive_words')) {
+            $words = PositiveWord::query()
+                ->where('language', 'en')
+                ->orderBy('word')
+                ->pluck('word')
+                ->filter()
+                ->map(fn ($word) => Str::lower(trim((string) $word)))
+                ->values()
+                ->all();
+
+            if (!empty($words)) {
+                return $words;
+            }
+        }
+
+        return [
+            'growth',
+            'increase',
+            'recovery',
+            'agreement',
+            'investment',
+            'expansion',
+            'improve',
+            'stable',
+            'partnership',
+            'profit',
+            'boost',
+            'surplus',
+            'resilient',
+            'strong',
+            'cooperation',
+            'trade deal',
+            'supply growth',
+            'logistics improvement',
+            'export growth',
+            'market recovery',
+        ];
+    }
+
+    private function getNegativeKeywords(): array
+    {
+        if (Schema::hasTable('negative_words')) {
+            $words = NegativeWord::query()
+                ->where('language', 'en')
+                ->orderBy('word')
+                ->pluck('word')
+                ->filter()
+                ->map(fn ($word) => Str::lower(trim((string) $word)))
+                ->values()
+                ->all();
+
+            if (!empty($words)) {
+                return $words;
+            }
+        }
+
+        return [
             'crisis',
             'conflict',
             'war',
@@ -261,61 +357,6 @@ class NewsService
             'export ban',
             'import restriction',
         ];
-
-        $positiveKeywords = [
-            'growth',
-            'increase',
-            'recovery',
-            'agreement',
-            'investment',
-            'expansion',
-            'improve',
-            'stable',
-            'partnership',
-            'profit',
-            'boost',
-            'surplus',
-            'resilient',
-            'strong',
-            'cooperation',
-            'trade deal',
-            'supply growth',
-            'logistics improvement',
-            'export growth',
-            'market recovery',
-        ];
-
-        $negativeScore = $this->countKeywordHits(
-            $text,
-            $negativeKeywords
-        );
-
-        $positiveScore = $this->countKeywordHits(
-            $text,
-            $positiveKeywords
-        );
-
-        $neutralScore = max(1, 10 - abs($negativeScore - $positiveScore));
-
-        $sentiment = match (true) {
-            $negativeScore > $positiveScore => 'negative',
-            $positiveScore > $negativeScore => 'positive',
-            default => 'neutral',
-        };
-
-        $riskScore = match ($sentiment) {
-            'negative' => min(90, 45 + ($negativeScore * 8)),
-            'positive' => max(10, 35 - ($positiveScore * 4)),
-            default => 35,
-        };
-
-        return [
-            'sentiment' => $sentiment,
-            'positive_score' => $positiveScore,
-            'negative_score' => $negativeScore,
-            'neutral_score' => $neutralScore,
-            'risk_score' => round((float) $riskScore, 2),
-        ];
     }
 
     private function countKeywordHits(
@@ -325,6 +366,12 @@ class NewsService
         $score = 0;
 
         foreach ($keywords as $keyword) {
+            $keyword = Str::lower(trim((string) $keyword));
+
+            if ($keyword === '') {
+                continue;
+            }
+
             if (str_contains($text, $keyword)) {
                 $score++;
             }

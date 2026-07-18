@@ -29,8 +29,8 @@
     @endphp
 
     <div class="dashboard-page watchlist-page">
-        <section class="dashboard-header watchlist-header">
-            <div class="dashboard-heading">
+        <section class="watchlist-hero">
+            <div>
                 <div class="page-eyebrow">
                     FAVORITE MONITORING LIST
                 </div>
@@ -40,35 +40,7 @@
                 </h1>
 
                 <p class="page-description">
-                    Simpan negara prioritas untuk dipantau dari sisi risiko, cuaca, kurs, berita, dan inflasi.
-                </p>
-            </div>
-        </section>
-
-        @if (session('success'))
-            <div class="alert alert-success rounded-4 border-0 shadow-sm mb-0">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="alert alert-danger rounded-4 border-0 shadow-sm mb-0">
-                {{ $errors->first() }}
-            </div>
-        @endif
-
-        <section class="watchlist-summary-card">
-            <div class="watchlist-summary-info">
-                <span class="watchlist-label">
-                    Kelola Favorit
-                </span>
-
-                <h2>
-                    Tambah Negara Pantauan
-                </h2>
-
-                <p>
-                    Pilih negara yang ingin disimpan sebagai daftar pemantauan utama.
+                    Simpan negara prioritas yang ingin dipantau dari sisi risiko, cuaca, kurs, berita, dan inflasi.
                 </p>
             </div>
 
@@ -79,113 +51,309 @@
             >
                 @csrf
 
-                <div>
-                    <label
-                        for="country_id"
-                        class="form-label fw-bold"
-                    >
-                        Negara
-                    </label>
-
-                    <select
-                        name="country_id"
-                        id="country_id"
-                        class="form-select"
-                        @disabled($availableCountries->isEmpty())
-                    >
-                        @forelse ($availableCountries as $country)
-                            <option value="{{ $country->id }}">
-                                {{ $country->name }} ({{ $country->iso3_code }})
-                            </option>
-                        @empty
-                            <option value="">
-                                Semua negara sudah ada di favorit
-                            </option>
-                        @endforelse
-                    </select>
-                </div>
+                <select
+                    name="country_id"
+                    id="country_id"
+                    class="form-select"
+                    @disabled($availableCountries->isEmpty())
+                >
+                    @forelse ($availableCountries as $country)
+                        <option value="{{ $country->id }}">
+                            {{ $country->name }} ({{ $country->iso3_code }})
+                        </option>
+                    @empty
+                        <option value="">
+                            Semua negara sudah ada di favorit
+                        </option>
+                    @endforelse
+                </select>
 
                 <button
                     type="submit"
                     class="btn btn-primary"
                     @disabled($availableCountries->isEmpty())
                 >
-                    <i class="bi bi-bookmark-plus me-1"></i>
-                    Tambah Favorit
+                    <i class="bi bi-bookmark-plus"></i>
+                    Tambah
                 </button>
             </form>
         </section>
 
-        <section class="watchlist-summary-card">
-            <div class="watchlist-summary-info">
-                <span class="watchlist-label">
-                    Ringkasan Favorit
-                </span>
+        @if (session('success'))
+            <div class="watchlist-alert watchlist-alert-success">
+                <i class="bi bi-check-circle"></i>
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
 
-                <h2>
-                    Negara Favorit
-                </h2>
+        @if ($errors->any())
+            <div class="watchlist-alert watchlist-alert-error">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>{{ $errors->first() }}</span>
+            </div>
+        @endif
 
-                <p>
-                    Negara prioritas yang dipantau berdasarkan skor risiko.
-                </p>
+        <section class="watchlist-card">
+            <div class="watchlist-card-heading compact-heading">
+                <div>
+                    <span class="watchlist-label">
+                        Negara Favorit
+                    </span>
+
+                    <h2>
+                        Daftar Negara Pantauan
+                    </h2>
+
+                    <p>
+                        Negara yang disimpan user untuk pemantauan risiko rantai pasok.
+                    </p>
+                </div>
+
+                <div class="watchlist-count-pill">
+                    {{ number_format($summary['total_countries'] ?? 0, 0, ',', '.') }} Negara
+                </div>
             </div>
 
-            <div class="watchlist-summary-grid">
-                <div class="watchlist-stat-card">
-                    <span>Total Favorit</span>
+            <div class="watchlist-country-grid">
+                @forelse ($watchlist as $item)
+                    @php
+                        $score = $item['risk_score']['total_score'] ?? 0;
 
-                    <strong>
-                        {{ number_format($summary['total_countries'] ?? 0, 0, ',', '.') }}
-                    </strong>
+                        $badgeClass = match (true) {
+                            $score >= 75 => 'bg-danger',
+                            $score >= 50 => 'bg-warning text-dark',
+                            $score >= 25 => 'bg-info text-dark',
+                            default => 'badge-risk-low',
+                        };
 
-                    <small>
-                        Negara dalam pemantauan
-                    </small>
-                </div>
+                        $countryId = $item['country']['id'] ?? null;
+                        $iso3 = $item['country']['iso3_code'] ?? 'IDN';
+                    @endphp
 
-                <div class="watchlist-stat-card">
-                    <span>Rata-rata Risiko</span>
+                    <article class="watchlist-country-card">
+                        <div class="watchlist-country-top">
+                            <div class="watchlist-country-cell">
+                                @if (!empty($item['country']['flag_url']))
+                                    <img
+                                        src="{{ $item['country']['flag_url'] }}"
+                                        alt="Bendera {{ $item['country']['name'] }}"
+                                    >
+                                @else
+                                    <div class="watchlist-flag-placeholder">
+                                        <i class="bi bi-flag"></i>
+                                    </div>
+                                @endif
 
-                    <strong>
-                        {{ number_format($summary['average_risk_score'] ?? 0, 2, ',', '.') }}
-                    </strong>
+                                <div>
+                                    <strong>
+                                        {{ $item['country']['name'] }}
+                                    </strong>
 
-                    <small>
-                        Skor risiko
-                    </small>
-                </div>
+                                    <small>
+                                        {{ $item['country']['iso3_code'] }}
+                                    </small>
+                                </div>
+                            </div>
 
-                <div class="watchlist-stat-card">
-                    <span>Risiko Tertinggi</span>
+                            <div class="watchlist-score-box">
+                                <strong>
+                                    {{ number_format($score, 2, ',', '.') }}
+                                </strong>
 
-                    <strong>
-                        {{ $summary['highest_risk_country'] ?? 'Belum tersedia' }}
-                    </strong>
+                                <span class="badge {{ $badgeClass }}">
+                                    {{ $item['risk_score']['risk_level_label'] }}
+                                </span>
+                            </div>
+                        </div>
 
-                    <small>
-                        Skor {{ number_format($summary['highest_risk_score'] ?? 0, 2, ',', '.') }}
-                    </small>
-                </div>
+                        <div class="watchlist-metric-grid">
+                            <div>
+                                <span>Cuaca</span>
 
-                <div class="watchlist-stat-card">
-                    <span>Status Umum</span>
+                                <strong>
+                                    @if ($item['weather']['available'])
+                                        {{ number_format($item['weather']['temperature'], 1, ',', '.') }}°C
+                                    @else
+                                        -
+                                    @endif
+                                </strong>
 
-                    <strong>
-                        <span class="badge {{ $riskBadgeClass }} watchlist-status-badge">
-                            {{ $riskStatusLabel }}
-                        </span>
-                    </strong>
+                                <small>
+                                    Risk {{ number_format($item['risk_score']['weather_score'] ?? 0, 2, ',', '.') }}
+                                </small>
+                            </div>
 
-                    <small>
-                        Status rata-rata
-                    </small>
-                </div>
+                            <div>
+                                <span>Kurs</span>
+
+                                <strong>
+                                    @if ($item['currency']['available'])
+                                        {{ $item['currency']['target_currency'] }}
+                                    @else
+                                        -
+                                    @endif
+                                </strong>
+
+                                <small>
+                                    Risk {{ number_format($item['risk_score']['currency_score'] ?? 0, 2, ',', '.') }}
+                                </small>
+                            </div>
+
+                            <div>
+                                <span>Berita</span>
+
+                                <strong>
+                                    {{ number_format($item['news']['total_articles'] ?? 0, 0, ',', '.') }}
+                                </strong>
+
+                                <small>
+                                    Risk {{ number_format($item['risk_score']['news_score'] ?? 0, 2, ',', '.') }}
+                                </small>
+                            </div>
+
+                            <div>
+                                <span>Inflasi</span>
+
+                                <strong>
+                                    @if ($item['economic']['inflation_available'])
+                                        {{ number_format($item['economic']['inflation_value'], 2, ',', '.') }}%
+                                    @else
+                                        -
+                                    @endif
+                                </strong>
+
+                                <small>
+                                    {{ $item['economic']['inflation_year'] ?? 'Belum tersedia' }}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="watchlist-country-footer">
+                            <small>
+                                Update: {{ $item['last_update'] ?? 'Belum tersedia' }}
+                            </small>
+
+                            <div class="watchlist-action-buttons">
+                                <a
+                                    href="{{ route('countries.index', ['country' => $iso3]) }}"
+                                    class="btn btn-sm btn-outline-primary"
+                                >
+                                    Negara
+                                </a>
+
+                                <a
+                                    href="{{ route('weather.index', ['country' => $iso3]) }}"
+                                    class="btn btn-sm btn-outline-secondary"
+                                >
+                                    Cuaca
+                                </a>
+
+                                <a
+                                    href="{{ route('currency.index', ['country' => $iso3]) }}"
+                                    class="btn btn-sm btn-outline-secondary"
+                                >
+                                    Kurs
+                                </a>
+
+                                <a
+                                    href="{{ route('news.index', ['country' => $iso3]) }}"
+                                    class="btn btn-sm btn-outline-secondary"
+                                >
+                                    Berita
+                                </a>
+
+                                @if ($countryId)
+                                    <form
+                                        method="POST"
+                                        action="{{ route('watchlist.destroy', $countryId) }}"
+                                        onsubmit="return confirm('Hapus negara ini dari favorit?')"
+                                    >
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-sm btn-outline-danger"
+                                        >
+                                            Hapus
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    </article>
+                @empty
+                    <div class="watchlist-empty">
+                        <i class="bi bi-bookmark"></i>
+
+                        <div>
+                            <strong>
+                                Belum ada negara favorit.
+                            </strong>
+
+                            <p>
+                                Pilih negara pada form di atas untuk mulai membuat daftar pemantauan.
+                            </p>
+                        </div>
+                    </div>
+                @endforelse
             </div>
         </section>
 
+        <section class="watchlist-summary-grid">
+            <article class="watchlist-stat-card">
+                <span>Total Favorit</span>
+
+                <strong>
+                    {{ number_format($summary['total_countries'] ?? 0, 0, ',', '.') }}
+                </strong>
+
+                <small>
+                    Negara dalam pemantauan
+                </small>
+            </article>
+
+            <article class="watchlist-stat-card">
+                <span>Rata-rata Risiko</span>
+
+                <strong>
+                    {{ number_format($summary['average_risk_score'] ?? 0, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Skor risiko favorit
+                </small>
+            </article>
+
+            <article class="watchlist-stat-card">
+                <span>Risiko Tertinggi</span>
+
+                <strong>
+                    {{ $summary['highest_risk_country'] ?? 'Belum tersedia' }}
+                </strong>
+
+                <small>
+                    Skor {{ number_format($summary['highest_risk_score'] ?? 0, 2, ',', '.') }}
+                </small>
+            </article>
+
+            <article class="watchlist-stat-card">
+                <span>Status Umum</span>
+
+                <strong>
+                    <span class="badge {{ $riskBadgeClass }} watchlist-status-badge">
+                        {{ $riskStatusLabel }}
+                    </span>
+                </strong>
+
+                <small>
+                    Status rata-rata
+                </small>
+            </article>
+        </section>
+
         <section class="watchlist-analysis-grid">
-            <article class="watchlist-card">
+            <article class="watchlist-card compact-card">
                 <div class="watchlist-card-heading">
                     <h3>
                         Komposisi Risiko
@@ -247,14 +415,14 @@
                 </div>
             </article>
 
-            <article class="watchlist-card">
+            <article class="watchlist-card compact-card">
                 <div class="watchlist-card-heading">
                     <h3>
                         Grafik Risiko
                     </h3>
 
                     <p>
-                        Negara favorit dengan skor risiko tertinggi.
+                        Skor risiko negara favorit.
                     </p>
                 </div>
 
@@ -262,217 +430,6 @@
                     <canvas id="watchlistRiskChart"></canvas>
                 </div>
             </article>
-        </section>
-
-        <section class="watchlist-card watchlist-table-card">
-            <div class="watchlist-card-heading">
-                <h3>
-                    Negara Favorit
-                </h3>
-
-                <p>
-                    Ringkasan risiko, cuaca, kurs, berita, dan inflasi.
-                </p>
-            </div>
-
-            <div class="table-responsive watchlist-table-wrapper">
-                <table class="table align-middle mb-0 watchlist-table">
-                    <thead>
-                        <tr>
-                            <th>Negara</th>
-                            <th>Risk Score</th>
-                            <th>Cuaca</th>
-                            <th>Kurs</th>
-                            <th>Berita</th>
-                            <th>Inflasi</th>
-                            <th>Update</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        @forelse ($watchlist as $item)
-                            @php
-                                $score = $item['risk_score']['total_score'] ?? 0;
-
-                                $badgeClass = match (true) {
-                                    $score >= 75 => 'bg-danger',
-                                    $score >= 50 => 'bg-warning text-dark',
-                                    $score >= 25 => 'bg-info text-dark',
-                                    default => 'badge-risk-low',
-                                };
-
-                                $countryId = $item['country']['id'] ?? null;
-                                $iso3 = $item['country']['iso3_code'] ?? 'IDN';
-                            @endphp
-
-                            <tr>
-                                <td>
-                                    <div class="watchlist-country-cell">
-                                        @if (!empty($item['country']['flag_url']))
-                                            <img
-                                                src="{{ $item['country']['flag_url'] }}"
-                                                alt="Bendera {{ $item['country']['name'] }}"
-                                            >
-                                        @else
-                                            <div class="watchlist-flag-placeholder">
-                                                <i class="bi bi-flag"></i>
-                                            </div>
-                                        @endif
-
-                                        <div>
-                                            <strong>
-                                                {{ $item['country']['name'] }}
-                                            </strong>
-
-                                            <small>
-                                                {{ $item['country']['iso3_code'] }}
-                                            </small>
-                                        </div>
-                                    </div>
-                                </td>
-
-                                <td>
-                                    <strong>
-                                        {{ number_format($score, 2, ',', '.') }}
-                                    </strong>
-
-                                    <br>
-
-                                    <span class="badge {{ $badgeClass }}">
-                                        {{ $item['risk_score']['risk_level_label'] }}
-                                    </span>
-                                </td>
-
-                                <td>
-                                    @if ($item['weather']['available'])
-                                        {{ number_format($item['weather']['temperature'], 1, ',', '.') }}°C
-
-                                        <br>
-
-                                        <small class="text-muted">
-                                            Risk {{ number_format($item['risk_score']['weather_score'], 2, ',', '.') }}
-                                        </small>
-                                    @else
-                                        <span class="text-muted">
-                                            Belum tersedia
-                                        </span>
-                                    @endif
-                                </td>
-
-                                <td>
-                                    @if ($item['currency']['available'])
-                                        1 {{ $item['currency']['base_currency'] }}
-                                        =
-                                        {{ number_format($item['currency']['rate'], 4, ',', '.') }}
-                                        {{ $item['currency']['target_currency'] }}
-
-                                        <br>
-
-                                        <small class="text-muted">
-                                            Risk {{ number_format($item['risk_score']['currency_score'], 2, ',', '.') }}
-                                        </small>
-                                    @else
-                                        <span class="text-muted">
-                                            Belum tersedia
-                                        </span>
-                                    @endif
-                                </td>
-
-                                <td>
-                                    {{ number_format($item['news']['total_articles'] ?? 0, 0, ',', '.') }}
-                                    artikel
-
-                                    <br>
-
-                                    <small class="text-muted">
-                                        Risk {{ number_format($item['risk_score']['news_score'], 2, ',', '.') }}
-                                    </small>
-                                </td>
-
-                                <td>
-                                    @if ($item['economic']['inflation_available'])
-                                        {{ number_format($item['economic']['inflation_value'], 2, ',', '.') }}%
-
-                                        <br>
-
-                                        <small class="text-muted">
-                                            Tahun {{ $item['economic']['inflation_year'] ?? '-' }}
-                                        </small>
-                                    @else
-                                        <span class="text-muted">
-                                            Belum tersedia
-                                        </span>
-                                    @endif
-                                </td>
-
-                                <td>
-                                    {{ $item['last_update'] ?? 'Belum tersedia' }}
-                                </td>
-
-                                <td>
-                                    <div class="watchlist-action-buttons">
-                                        <a
-                                            href="{{ route('countries.index', ['country' => $iso3]) }}"
-                                            class="btn btn-sm btn-outline-primary"
-                                        >
-                                            Negara
-                                        </a>
-
-                                        <a
-                                            href="{{ route('weather.index', ['country' => $iso3]) }}"
-                                            class="btn btn-sm btn-outline-secondary"
-                                        >
-                                            Cuaca
-                                        </a>
-
-                                        <a
-                                            href="{{ route('currency.index', ['country' => $iso3]) }}"
-                                            class="btn btn-sm btn-outline-secondary"
-                                        >
-                                            Kurs
-                                        </a>
-
-                                        <a
-                                            href="{{ route('news.index', ['country' => $iso3]) }}"
-                                            class="btn btn-sm btn-outline-secondary"
-                                        >
-                                            Berita
-                                        </a>
-
-                                        @if ($countryId)
-                                            <form
-                                                method="POST"
-                                                action="{{ route('watchlist.destroy', $countryId) }}"
-                                                onsubmit="return confirm('Hapus negara ini dari favorit?')"
-                                            >
-                                                @csrf
-                                                @method('DELETE')
-
-                                                <button
-                                                    type="submit"
-                                                    class="btn btn-sm btn-outline-danger"
-                                                >
-                                                    Hapus
-                                                </button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td
-                                    colspan="8"
-                                    class="text-center text-muted py-4"
-                                >
-                                    Belum ada negara dalam favorit pemantauan.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
         </section>
     </div>
 @endsection
@@ -482,217 +439,165 @@
         .watchlist-page {
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 14px;
         }
 
-        .watchlist-header {
-            margin-bottom: 0;
-        }
-
-        .watchlist-summary-card,
-        .watchlist-card {
-            background: #ffffff;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            border-radius: 18px;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.045);
-        }
-
-        .watchlist-summary-card {
+        .watchlist-hero {
             display: grid;
-            grid-template-columns: minmax(250px, 0.85fr) minmax(380px, 1.6fr);
-            gap: 20px;
-            align-items: stretch;
-            padding: 22px 24px;
+            grid-template-columns: minmax(0, 1fr) minmax(360px, 480px);
+            gap: 16px;
+            align-items: end;
         }
 
         .watchlist-add-form {
             display: grid;
-            grid-template-columns: minmax(260px, 1fr) 180px;
-            gap: 12px;
-            align-items: end;
+            grid-template-columns: minmax(0, 1fr) 110px;
+            gap: 8px;
+            align-items: center;
+            padding: 12px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 16px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
 
         .watchlist-add-form .form-select,
         .watchlist-add-form .btn {
-            height: 46px;
-            border-radius: 12px;
+            height: 38px;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
         }
 
-        .watchlist-summary-info {
-            min-width: 0;
+        .watchlist-alert {
             display: flex;
-            flex-direction: column;
-            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            font-size: 0.86rem;
+            font-weight: 750;
+            border: 1px solid transparent;
+        }
+
+        .watchlist-alert-success {
+            background: #ecfdf5;
+            color: #047857;
+            border-color: rgba(16, 185, 129, 0.22);
+        }
+
+        .watchlist-alert-error {
+            background: #fef2f2;
+            color: #b91c1c;
+            border-color: rgba(239, 68, 68, 0.22);
+        }
+
+        .watchlist-card,
+        .watchlist-stat-card,
+        .watchlist-country-card {
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 16px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .watchlist-card {
+            padding: 16px;
+        }
+
+        .compact-card {
+            padding: 15px;
+        }
+
+        .watchlist-card-heading {
+            margin-bottom: 12px;
+        }
+
+        .compact-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 12px;
         }
 
         .watchlist-label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             color: #7c8aa5;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.035em;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
         }
 
-        .watchlist-summary-info h2 {
-            margin: 0 0 8px;
-            color: #121827;
-            font-size: 1.45rem;
-            font-weight: 800;
-            line-height: 1.25;
-        }
-
-        .watchlist-summary-info p,
-        .watchlist-card-heading p {
-            margin: 0;
-            color: #7c8aa5;
-            font-size: 0.88rem;
-            line-height: 1.55;
-        }
-
-        .watchlist-summary-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(130px, 1fr));
-            gap: 12px;
-            min-width: 0;
-        }
-
-        .watchlist-stat-card {
-            min-width: 0;
-            padding: 14px 14px;
-            border-radius: 14px;
-            background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.16);
-        }
-
-        .watchlist-stat-card span,
-        .risk-level-item span {
-            display: block;
-            margin-bottom: 6px;
-            color: #7c8aa5;
-            font-size: 0.78rem;
-            font-weight: 700;
-        }
-
-        .watchlist-stat-card strong,
-        .risk-level-item strong {
-            display: block;
+        .watchlist-card-heading h2,
+        .watchlist-card-heading h3 {
+            margin: 0 0 4px;
             color: #111827;
-            font-size: 1.22rem;
-            font-weight: 800;
+            font-weight: 900;
             line-height: 1.25;
-            word-break: break-word;
         }
 
-        .watchlist-stat-card small,
-        .risk-level-item small {
-            display: block;
-            margin-top: 5px;
-            color: #7c8aa5;
-            font-size: 0.76rem;
-            line-height: 1.35;
-        }
-
-        .watchlist-status-badge {
-            width: 100%;
-            max-width: 190px;
-            padding: 7px 10px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            border-radius: 9px;
-        }
-
-        .badge-risk-low {
-            background: #eef6ff !important;
-            color: #1d4ed8 !important;
-            border: 1px solid rgba(37, 99, 235, 0.18);
-        }
-
-        .watchlist-analysis-grid {
-            display: grid;
-            grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.5fr);
-            gap: 18px;
-        }
-
-        .watchlist-card {
-            padding: 22px 24px;
-            overflow: visible;
-        }
-
-        .watchlist-card-heading {
-            margin-bottom: 16px;
+        .watchlist-card-heading h2 {
+            font-size: 1.18rem;
         }
 
         .watchlist-card-heading h3 {
-            margin: 0 0 6px;
-            color: #121827;
-            font-size: 1.08rem;
-            font-weight: 800;
-            line-height: 1.35;
+            font-size: 1rem;
         }
 
-        .risk-level-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(120px, 1fr));
-            gap: 12px;
+        .watchlist-card-heading p {
+            margin: 0;
+            color: #7c8aa5;
+            font-size: 0.82rem;
+            line-height: 1.45;
         }
 
-        .risk-level-item {
-            padding: 14px;
-            border-radius: 14px;
-            background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.16);
-        }
-
-        .watchlist-chart-box {
-            height: 220px;
-            width: 100%;
-        }
-
-        .watchlist-table-card {
-            padding: 22px 24px;
-        }
-
-        .watchlist-table-wrapper {
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 16px;
-            overflow: auto;
-        }
-
-        .watchlist-table {
-            min-width: 1120px;
-        }
-
-        .watchlist-table thead th {
-            background: #f8fafc;
-            color: #64748b;
-            font-size: 0.76rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.035em;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+        .watchlist-count-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #eef6ff;
+            color: #1d4ed8;
+            font-size: 0.78rem;
+            font-weight: 850;
             white-space: nowrap;
         }
 
-        .watchlist-table tbody td {
-            color: #334155;
-            font-size: 0.86rem;
-            vertical-align: middle;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+        .watchlist-country-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .watchlist-country-card {
+            padding: 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .watchlist-country-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
         }
 
         .watchlist-country-cell {
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-width: 190px;
+            gap: 9px;
+            min-width: 0;
         }
 
         .watchlist-country-cell img,
         .watchlist-flag-placeholder {
-            width: 32px;
-            height: 22px;
+            width: 31px;
+            height: 21px;
             flex: 0 0 auto;
             border-radius: 6px;
             object-fit: cover;
@@ -708,63 +613,228 @@
         .watchlist-country-cell strong {
             display: block;
             color: #111827;
-            font-size: 0.9rem;
-            font-weight: 800;
+            font-size: 0.94rem;
+            font-weight: 900;
             line-height: 1.25;
         }
 
-        .watchlist-country-cell small {
+        .watchlist-country-cell small,
+        .watchlist-country-footer small {
             display: block;
-            margin-top: 2px;
             color: #7c8aa5;
-            font-size: 0.76rem;
+            font-size: 0.72rem;
+            line-height: 1.35;
+        }
+
+        .watchlist-score-box {
+            text-align: right;
+            flex: 0 0 auto;
+        }
+
+        .watchlist-score-box strong {
+            display: block;
+            color: #111827;
+            font-size: 1.08rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .watchlist-score-box .badge,
+        .watchlist-status-badge {
+            padding: 5px 8px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .badge-risk-low {
+            background: #eef6ff !important;
+            color: #1d4ed8 !important;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+        }
+
+        .watchlist-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .watchlist-metric-grid > div,
+        .risk-level-item {
+            min-width: 0;
+            padding: 9px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.14);
+        }
+
+        .watchlist-metric-grid span,
+        .watchlist-stat-card span,
+        .risk-level-item span {
+            display: block;
+            margin-bottom: 4px;
+            color: #7c8aa5;
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .watchlist-metric-grid strong,
+        .watchlist-stat-card strong,
+        .risk-level-item strong {
+            display: block;
+            color: #111827;
+            font-size: 0.9rem;
+            font-weight: 900;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+
+        .watchlist-metric-grid small,
+        .watchlist-stat-card small,
+        .risk-level-item small {
+            display: block;
+            margin-top: 3px;
+            color: #7c8aa5;
+            font-size: 0.68rem;
+            line-height: 1.25;
+        }
+
+        .watchlist-country-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding-top: 2px;
         }
 
         .watchlist-action-buttons {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
-            min-width: 255px;
+            justify-content: flex-end;
+            gap: 5px;
         }
 
         .watchlist-action-buttons .btn {
-            padding: 4px 8px;
-            font-size: 0.76rem;
+            padding: 3px 7px;
+            font-size: 0.7rem;
             border-radius: 8px;
+            font-weight: 750;
         }
 
-        @media (max-width: 1320px) {
-            .watchlist-summary-card {
-                grid-template-columns: 1fr;
-            }
-
-            .watchlist-summary-grid {
-                grid-template-columns: repeat(2, minmax(150px, 1fr));
-            }
+        .watchlist-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
         }
 
-        @media (max-width: 1100px) {
+        .watchlist-stat-card {
+            padding: 13px;
+        }
+
+        .watchlist-stat-card strong {
+            font-size: 1.05rem;
+        }
+
+        .watchlist-analysis-grid {
+            display: grid;
+            grid-template-columns: minmax(280px, 0.85fr) minmax(380px, 1.15fr);
+            gap: 12px;
+        }
+
+        .risk-level-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .risk-level-item strong {
+            font-size: 1.05rem;
+        }
+
+        .watchlist-chart-box {
+            height: 185px;
+            width: 100%;
+        }
+
+        .watchlist-empty {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 18px;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px dashed rgba(148, 163, 184, 0.45);
+            color: #64748b;
+        }
+
+        .watchlist-empty i {
+            font-size: 1.6rem;
+            color: #2563eb;
+        }
+
+        .watchlist-empty strong {
+            display: block;
+            color: #111827;
+            font-size: 0.95rem;
+            font-weight: 900;
+        }
+
+        .watchlist-empty p {
+            margin: 3px 0 0;
+            font-size: 0.82rem;
+        }
+
+        @media (max-width: 1280px) {
+            .watchlist-hero,
             .watchlist-analysis-grid {
                 grid-template-columns: 1fr;
             }
+
+            .watchlist-summary-grid,
+            .risk-level-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
 
-        @media (max-width: 768px) {
-            .watchlist-summary-card,
-            .watchlist-card,
-            .watchlist-table-card {
-                padding: 18px;
-                border-radius: 16px;
+        @media (max-width: 980px) {
+            .watchlist-country-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .watchlist-hero,
+            .watchlist-add-form,
+            .watchlist-country-footer {
+                grid-template-columns: 1fr;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .watchlist-add-form {
+                display: grid;
             }
 
             .watchlist-summary-grid,
             .risk-level-grid,
-            .watchlist-add-form {
-                grid-template-columns: 1fr;
+            .watchlist-metric-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
-            .watchlist-chart-box {
-                height: 210px;
+            .compact-heading,
+            .watchlist-country-top {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .watchlist-score-box {
+                text-align: left;
+            }
+
+            .watchlist-action-buttons {
+                justify-content: flex-start;
             }
         }
     </style>
@@ -803,8 +873,8 @@
             var labels = Array.isArray(riskData.labels) ? riskData.labels : [];
             var values = Array.isArray(riskData.values) ? riskData.values : [];
 
-            labels = labels.slice(0, 25);
-            values = values.slice(0, 25);
+            labels = labels.slice(0, 12);
+            values = values.slice(0, 12);
 
             new Chart(canvas, {
                 type: 'bar',
@@ -812,11 +882,11 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Risk Score Negara',
+                            label: 'Risk Score',
                             data: values,
                             borderWidth: 1,
                             borderRadius: 6,
-                            maxBarThickness: 30
+                            maxBarThickness: 24
                         }
                     ]
                 },
@@ -825,8 +895,8 @@
                     maintainAspectRatio: false,
                     layout: {
                         padding: {
-                            top: 6,
-                            right: 6,
+                            top: 4,
+                            right: 4,
                             bottom: 0,
                             left: 0
                         }
@@ -835,10 +905,10 @@
                         x: {
                             ticks: {
                                 autoSkip: true,
-                                maxRotation: 35,
+                                maxRotation: 25,
                                 minRotation: 0,
                                 font: {
-                                    size: 10
+                                    size: 9
                                 }
                             },
                             grid: {
@@ -850,18 +920,19 @@
                             suggestedMax: 100,
                             ticks: {
                                 font: {
-                                    size: 10
+                                    size: 9
                                 }
                             }
                         }
                     },
                     plugins: {
                         legend: {
+                            display: true,
                             position: 'top',
                             labels: {
-                                boxWidth: 12,
+                                boxWidth: 10,
                                 font: {
-                                    size: 11
+                                    size: 10
                                 }
                             }
                         },
