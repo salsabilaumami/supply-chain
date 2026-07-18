@@ -6,21 +6,7 @@ Sistem ini mengintegrasikan data negara, kondisi ekonomi, cuaca, nilai tukar mat
 
 Project ini dikembangkan sebagai platform monitoring risiko rantai pasok global berbasis multi-API, dashboard analytics, geospatial visualization, business intelligence, dan simple scoring algorithm.
 
----
-
-## Case Study
-
-Sebuah perusahaan ingin mengimpor barang dari berbagai negara. Dalam proses impor, terdapat beberapa risiko yang perlu dipantau, seperti:
-
-- Cuaca buruk yang dapat mengganggu pengiriman.
-- Nilai tukar mata uang yang berubah.
-- Konflik geopolitik yang meningkatkan risiko.
-- Kemacetan pelabuhan yang menyebabkan keterlambatan.
-- Inflasi suatu negara yang dapat memengaruhi biaya produksi.
-
 Platform ini dibangun untuk memantau seluruh indikator tersebut dalam satu sistem agar dapat membantu pengambilan keputusan bisnis.
-
----
 
 ## Main Features
 
@@ -602,6 +588,8 @@ Sistem ini bukan aplikasi tracking paket berdasarkan nomor resi, tetapi platform
 
 ---
 
-## Developer
-
+## Develope
+Nama  : Salsabila Umami
+NIM   : 240180125
+Kelas : A3
 Project ini dikembangkan sebagai project final berbasis Full Stack Development, API Integration, Data Engineering, Dashboard Analytics, Geospatial Visualization, Business Intelligence, dan Decision Support System.
