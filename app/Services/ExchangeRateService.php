@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Country;
 use App\Models\ExchangeRate;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -43,7 +44,7 @@ class ExchangeRateService
         Country $country,
         string $baseCurrency = 'USD',
         int $limit = 30
-    ) {
+    ): Collection {
         $targetCurrency = $this->normalizeCurrencyCode($country->currency_code);
         $baseCurrency = $this->normalizeCurrencyCode($baseCurrency);
 
@@ -75,14 +76,11 @@ class ExchangeRateService
         $response = Http::acceptJson()
             ->timeout(20)
             ->retry(3, 700)
-            ->get(
-                $baseUrl . '/' . $apiKey . '/latest/' . $baseCurrency
-            );
+            ->get($baseUrl . '/' . $apiKey . '/latest/' . $baseCurrency);
 
         if ($response->failed()) {
             throw new RuntimeException(
-                'Gagal mengambil data kurs. Status API: ' .
-                $response->status()
+                'Gagal mengambil data kurs. Status: ' . $response->status()
             );
         }
 
@@ -90,7 +88,7 @@ class ExchangeRateService
 
         if (($payload['result'] ?? null) !== 'success') {
             throw new RuntimeException(
-                'Respons API kurs tidak berhasil. Pesan: ' .
+                'Respons kurs tidak berhasil. Pesan: ' .
                 ($payload['error-type'] ?? 'Tidak diketahui')
             );
         }
@@ -99,8 +97,7 @@ class ExchangeRateService
 
         if (!array_key_exists($targetCurrency, $rates)) {
             throw new RuntimeException(
-                'Mata uang ' . $targetCurrency .
-                ' tidak tersedia pada respons API kurs.'
+                'Mata uang ' . $targetCurrency . ' tidak tersedia.'
             );
         }
 
@@ -123,16 +120,20 @@ class ExchangeRateService
             $changePercentage
         );
 
-        return ExchangeRate::create([
-            'country_id' => $country->id,
-            'base_currency' => $baseCurrency,
-            'target_currency' => $targetCurrency,
-            'rate' => $currentRate,
-            'change_percentage' => $changePercentage,
-            'currency_risk' => $currencyRisk,
-            'recorded_at' => $recordedAt,
-            'fetched_at' => now(),
-        ]);
+        return ExchangeRate::query()->updateOrCreate(
+            [
+                'country_id' => $country->id,
+                'base_currency' => $baseCurrency,
+                'target_currency' => $targetCurrency,
+                'recorded_at' => $recordedAt,
+            ],
+            [
+                'rate' => $currentRate,
+                'change_percentage' => $changePercentage,
+                'currency_risk' => $currencyRisk,
+                'fetched_at' => now(),
+            ]
+        );
     }
 
     private function getFreshCachedRate(
@@ -180,28 +181,18 @@ class ExchangeRateService
     private function calculateCurrencyRisk(?float $changePercentage): float
     {
         if ($changePercentage === null) {
-            return 20;
+            return 20.0;
         }
 
         $change = abs($changePercentage);
 
-        if ($change <= 1) {
-            return 15;
-        }
-
-        if ($change <= 3) {
-            return 35;
-        }
-
-        if ($change <= 5) {
-            return 60;
-        }
-
-        if ($change <= 10) {
-            return 80;
-        }
-
-        return 95;
+        return match (true) {
+            $change <= 1 => 15.0,
+            $change <= 3 => 35.0,
+            $change <= 5 => 60.0,
+            $change <= 10 => 80.0,
+            default => 95.0,
+        };
     }
 
     private function resolveRecordedAt(array $payload): Carbon

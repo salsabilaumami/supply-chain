@@ -16,12 +16,10 @@ class CurrencyController extends Controller
         Request $request,
         ExchangeRateService $exchangeRateService
     ): View {
-        $data = $this->buildCurrencyData(
+        return view('currency.index', $this->buildCurrencyData(
             $request,
             $exchangeRateService
-        );
-
-        return view('currency.index', $data);
+        ));
     }
 
     public function show(
@@ -92,18 +90,12 @@ class CurrencyController extends Controller
             $selectedCountry = $countries->firstOrFail();
         }
 
-        /*
-         |--------------------------------------------------------------------------
-         | REAL-TIME EXCHANGERATE
-         |--------------------------------------------------------------------------
-         | Setiap halaman /currency atau /api/currency dibuka,
-         | sistem mencoba mengambil kurs terbaru dari ExchangeRate API.
-         | Jika API gagal, sistem tetap memakai data terakhir di database.
-         |--------------------------------------------------------------------------
-         */
-        $exchangeRate = $this->getRealtimeExchangeRate(
+        $forceRefresh = $request->boolean('refresh');
+
+        [$exchangeRate, $apiError] = $this->getRealtimeExchangeRate(
             $selectedCountry,
-            $exchangeRateService
+            $exchangeRateService,
+            $forceRefresh
         );
 
         $history = ExchangeRate::query()
@@ -111,8 +103,12 @@ class CurrencyController extends Controller
             ->where('base_currency', 'USD')
             ->where('target_currency', $selectedCountry->currency_code)
             ->latest('recorded_at')
-            ->limit(10)
+            ->limit(40)
             ->get()
+            ->unique(function (ExchangeRate $item) {
+                return $item->recorded_at?->format('Y-m-d H:i') . '-' . $item->rate;
+            })
+            ->take(14)
             ->sortBy('recorded_at')
             ->values();
 
@@ -165,17 +161,15 @@ class CurrencyController extends Controller
         return [
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
-
             'exchangeRate' => $exchangeRate,
             'history' => $history,
             'currencyAvailable' => $currencyAvailable,
-
             'displayRate' => $displayRate,
             'displayChange' => $displayChange,
             'currencyRisk' => $currencyRisk,
             'riskLabel' => $riskLabel,
             'lastUpdate' => $lastUpdate,
-
+            'apiError' => $apiError,
             'chartData' => [
                 'rate' => [
                     'labels' => $chartLabels,
@@ -191,21 +185,29 @@ class CurrencyController extends Controller
 
     private function getRealtimeExchangeRate(
         Country $country,
-        ExchangeRateService $exchangeRateService
-    ): ?ExchangeRate {
+        ExchangeRateService $exchangeRateService,
+        bool $forceRefresh = false
+    ): array {
         try {
-            return $exchangeRateService->getLatestRate(
+            $exchangeRate = $exchangeRateService->getLatestRate(
                 $country,
                 'USD',
-                true
+                $forceRefresh
             );
-        } catch (Throwable $exception) {
-            return ExchangeRate::query()
+
+            return [$exchangeRate, null];
+        } catch (Throwable) {
+            $fallback = ExchangeRate::query()
                 ->where('country_id', $country->id)
                 ->where('base_currency', 'USD')
                 ->where('target_currency', $country->currency_code)
                 ->latest('recorded_at')
                 ->first();
+
+            return [
+                $fallback,
+                'Data kurs terbaru belum dapat diperbarui. Sistem menampilkan data terakhir yang tersimpan.',
+            ];
         }
     }
 

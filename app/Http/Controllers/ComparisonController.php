@@ -71,12 +71,6 @@ class ComparisonController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Data perbandingan negara berhasil dimuat.',
-            'realtime_sources' => [
-                'weather' => 'Open-Meteo API',
-                'currency' => 'ExchangeRate API',
-                'news' => 'GNews API',
-                'economic' => 'World Bank latest stored data',
-            ],
             'country_a' => $data['countryA']
                 ? $this->formatCountry($data['countryA'])
                 : null,
@@ -132,12 +126,15 @@ class ComparisonController extends Controller
             $countryB = $countryA;
         }
 
+        $forceRefresh = $request->boolean('refresh');
+
         if ($countryA) {
             $this->refreshRealtimeData(
                 $countryA,
                 $weatherService,
                 $exchangeRateService,
-                $newsService
+                $newsService,
+                $forceRefresh
             );
         }
 
@@ -146,7 +143,8 @@ class ComparisonController extends Controller
                 $countryB,
                 $weatherService,
                 $exchangeRateService,
-                $newsService
+                $newsService,
+                $forceRefresh
             );
         }
 
@@ -162,22 +160,16 @@ class ComparisonController extends Controller
 
         return [
             'countries' => $countries,
-
-            // Variabel utama.
             'countryA' => $countryA,
             'countryB' => $countryB,
             'summaryA' => $summaryA,
             'summaryB' => $summaryB,
             'chartData' => $chartData,
-
-            // Variabel tambahan agar cocok dengan view lama/baru.
             'selectedCountryA' => $countryA,
             'selectedCountryB' => $countryB,
             'countryAData' => $summaryA,
             'countryBData' => $summaryB,
             'comparisonChartData' => $chartData,
-
-            // Struktur comparison agar view compact tetap membaca data.
             'comparison' => [
                 'country_a' => $summaryA,
                 'country_b' => $summaryB,
@@ -189,24 +181,25 @@ class ComparisonController extends Controller
         Country $country,
         WeatherService $weatherService,
         ExchangeRateService $exchangeRateService,
-        NewsService $newsService
+        NewsService $newsService,
+        bool $forceRefresh = false
     ): void {
         try {
-            $weatherService->getCurrentWeather($country, true);
-        } catch (Throwable $exception) {
-            // Jika Open-Meteo gagal, sistem memakai data terakhir dari database.
+            $weatherService->getCurrentWeather($country, $forceRefresh);
+        } catch (Throwable) {
+            //
         }
 
         try {
-            $exchangeRateService->getLatestRate($country, 'USD', true);
-        } catch (Throwable $exception) {
-            // Jika ExchangeRate API gagal, sistem memakai data terakhir dari database.
+            $exchangeRateService->getLatestRate($country, 'USD', $forceRefresh);
+        } catch (Throwable) {
+            //
         }
 
         try {
-            $newsService->getLatestNews($country, true);
-        } catch (Throwable $exception) {
-            // Jika GNews gagal/limit, sistem memakai berita terakhir dari database.
+            $newsService->getLatestNews($country, $forceRefresh);
+        } catch (Throwable) {
+            //
         }
     }
 
@@ -291,9 +284,6 @@ class ComparisonController extends Controller
                 'risk_level_label' => $this->riskLevelLabel($riskLevel),
                 'calculated_at' => now()->toDateTimeString(),
                 'stored_calculated_at' => $storedRiskScore?->calculated_at?->toDateTimeString(),
-                'source' => $hasComponentData
-                    ? 'real-time/database component calculation'
-                    : 'stored risk score fallback',
             ],
         ];
     }
@@ -345,6 +335,10 @@ class ComparisonController extends Controller
 
     private function getLatestExchangeRate(Country $country): ?ExchangeRate
     {
+        if (!$country->currency_code) {
+            return null;
+        }
+
         return ExchangeRate::query()
             ->where('country_id', $country->id)
             ->where('base_currency', 'USD')
@@ -386,7 +380,7 @@ class ComparisonController extends Controller
             'negative_count' => $negativeCount,
             'average_risk_score' => $averageRiskScore,
             'risk_label' => $this->riskScoreLabel($averageRiskScore),
-            'last_analyzed_at' => $sentiments->max('analyzed_at')?->toDateTimeString(),
+            'last_analyzed_at' => optional($sentiments->max('analyzed_at'))->toDateTimeString(),
         ];
     }
 
@@ -412,11 +406,11 @@ class ComparisonController extends Controller
             ],
             'economic' => [
                 'labels' => [
-                    'GDP (US$ T)',
-                    'Ekspor (US$ B)',
-                    'Impor (US$ B)',
-                    'Inflasi (%)',
-                    'Populasi (Juta)',
+                    'GDP',
+                    'Ekspor',
+                    'Impor',
+                    'Inflasi',
+                    'Populasi',
                 ],
                 'country_a' => [
                     round((float) ($summaryA['economic']['gdp']['value'] ?? 0) / 1000000000000, 2),
@@ -437,10 +431,10 @@ class ComparisonController extends Controller
             ],
             'operational' => [
                 'labels' => [
-                    'Risiko Cuaca',
-                    'Risiko Inflasi',
-                    'Risiko Kurs',
-                    'Risiko Berita',
+                    'Cuaca',
+                    'Inflasi',
+                    'Kurs',
+                    'Berita',
                 ],
                 'country_a' => [
                     round((float) ($summaryA['risk_score']['weather_score'] ?? 0), 2),

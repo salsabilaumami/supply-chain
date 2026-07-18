@@ -4,8 +4,8 @@
 
 @section('content')
     @php
-        $selectedCountryA = $selectedCountryA ?? $countryA ?? ($comparison['country_a']['country'] ?? null);
-        $selectedCountryB = $selectedCountryB ?? $countryB ?? ($comparison['country_b']['country'] ?? null);
+        $selectedCountryA = $selectedCountryA ?? $countryA ?? null;
+        $selectedCountryB = $selectedCountryB ?? $countryB ?? null;
 
         $countryAData = $countryAData ?? ($comparison['country_a'] ?? []);
         $countryBData = $countryBData ?? ($comparison['country_b'] ?? []);
@@ -13,33 +13,38 @@
         $countryAName = $selectedCountryA?->name ?? ($countryAData['country']['name'] ?? 'Negara A');
         $countryBName = $selectedCountryB?->name ?? ($countryBData['country']['name'] ?? 'Negara B');
 
-        $countryAOfficialName = $selectedCountryA?->official_name ?? ($countryAData['country']['official_name'] ?? $countryAName);
-        $countryBOfficialName = $selectedCountryB?->official_name ?? ($countryBData['country']['official_name'] ?? $countryBName);
-
         $countryAIso = $selectedCountryA?->iso3_code ?? ($countryAData['country']['iso3_code'] ?? 'IDN');
         $countryBIso = $selectedCountryB?->iso3_code ?? ($countryBData['country']['iso3_code'] ?? 'SGP');
 
-        $countryAScore = $countryAData['risk_score']['total_score']
-            ?? $countryAData['risk']['total_score']
-            ?? $countryAData['total_score']
-            ?? 0;
+        $countryAFlag = $selectedCountryA?->flag_url ?? ($countryAData['country']['flag_url'] ?? null);
+        $countryBFlag = $selectedCountryB?->flag_url ?? ($countryBData['country']['flag_url'] ?? null);
 
-        $countryBScore = $countryBData['risk_score']['total_score']
-            ?? $countryBData['risk']['total_score']
-            ?? $countryBData['total_score']
-            ?? 0;
+        $countryARegion = $selectedCountryA?->region ?? ($countryAData['country']['region'] ?? '-');
+        $countryBRegion = $selectedCountryB?->region ?? ($countryBData['country']['region'] ?? '-');
 
-        $weatherA = $countryAData['risk_score']['weather_score'] ?? $countryAData['weather_score'] ?? 0;
-        $weatherB = $countryBData['risk_score']['weather_score'] ?? $countryBData['weather_score'] ?? 0;
+        $countryAScore = $countryAData['risk_score']['total_score'] ?? 0;
+        $countryBScore = $countryBData['risk_score']['total_score'] ?? 0;
 
-        $inflationA = $countryAData['risk_score']['inflation_score'] ?? $countryAData['inflation_score'] ?? 0;
-        $inflationB = $countryBData['risk_score']['inflation_score'] ?? $countryBData['inflation_score'] ?? 0;
+        $weatherA = $countryAData['risk_score']['weather_score'] ?? 0;
+        $weatherB = $countryBData['risk_score']['weather_score'] ?? 0;
 
-        $currencyA = $countryAData['risk_score']['currency_score'] ?? $countryAData['currency_score'] ?? 0;
-        $currencyB = $countryBData['risk_score']['currency_score'] ?? $countryBData['currency_score'] ?? 0;
+        $inflationA = $countryAData['risk_score']['inflation_score'] ?? 0;
+        $inflationB = $countryBData['risk_score']['inflation_score'] ?? 0;
 
-        $newsA = $countryAData['risk_score']['news_score'] ?? $countryAData['news_score'] ?? 0;
-        $newsB = $countryBData['risk_score']['news_score'] ?? $countryBData['news_score'] ?? 0;
+        $currencyA = $countryAData['risk_score']['currency_score'] ?? 0;
+        $currencyB = $countryBData['risk_score']['currency_score'] ?? 0;
+
+        $newsA = $countryAData['risk_score']['news_score'] ?? 0;
+        $newsB = $countryBData['risk_score']['news_score'] ?? 0;
+
+        $gdpA = $countryAData['economic']['gdp']['display_value'] ?? 'Belum tersedia';
+        $gdpB = $countryBData['economic']['gdp']['display_value'] ?? 'Belum tersedia';
+
+        $inflationValueA = $countryAData['economic']['inflation']['display_value'] ?? 'Belum tersedia';
+        $inflationValueB = $countryBData['economic']['inflation']['display_value'] ?? 'Belum tersedia';
+
+        $currencyCodeA = $selectedCountryA?->currency_code ?? ($countryAData['country']['currency_code'] ?? '-');
+        $currencyCodeB = $selectedCountryB?->currency_code ?? ($countryBData['country']['currency_code'] ?? '-');
 
         $riskLabel = function ($score) {
             return match (true) {
@@ -59,7 +64,7 @@
             };
         };
 
-        $comparisonChartData = [
+        $comparisonChartData = $comparisonChartData ?? $chartData ?? [
             'risk' => [
                 'labels' => [$countryAIso, $countryBIso],
                 'values' => [
@@ -68,32 +73,40 @@
                 ],
             ],
             'economic' => [
-                'labels' => ['Inflasi', 'Kurs', 'Berita'],
+                'labels' => ['GDP', 'Ekspor', 'Impor', 'Inflasi', 'Populasi'],
                 'country_a' => [
+                    round((float) ($countryAData['economic']['gdp']['value'] ?? 0) / 1000000000000, 2),
+                    round((float) ($countryAData['economic']['exports']['value'] ?? 0) / 1000000000, 2),
+                    round((float) ($countryAData['economic']['imports']['value'] ?? 0) / 1000000000, 2),
+                    round((float) ($countryAData['economic']['inflation']['value'] ?? 0), 2),
+                    round((float) ($countryAData['economic']['population']['value'] ?? 0) / 1000000, 2),
+                ],
+                'country_b' => [
+                    round((float) ($countryBData['economic']['gdp']['value'] ?? 0) / 1000000000000, 2),
+                    round((float) ($countryBData['economic']['exports']['value'] ?? 0) / 1000000000, 2),
+                    round((float) ($countryBData['economic']['imports']['value'] ?? 0) / 1000000000, 2),
+                    round((float) ($countryBData['economic']['inflation']['value'] ?? 0), 2),
+                    round((float) ($countryBData['economic']['population']['value'] ?? 0) / 1000000, 2),
+                ],
+                'country_a_label' => $countryAIso,
+                'country_b_label' => $countryBIso,
+            ],
+            'operational' => [
+                'labels' => ['Cuaca', 'Inflasi', 'Kurs', 'Berita'],
+                'country_a' => [
+                    round((float) $weatherA, 2),
                     round((float) $inflationA, 2),
                     round((float) $currencyA, 2),
                     round((float) $newsA, 2),
                 ],
                 'country_b' => [
+                    round((float) $weatherB, 2),
                     round((float) $inflationB, 2),
                     round((float) $currencyB, 2),
                     round((float) $newsB, 2),
                 ],
-            ],
-            'operational' => [
-                'labels' => ['Cuaca', 'Kurs', 'Berita', 'Total'],
-                'country_a' => [
-                    round((float) $weatherA, 2),
-                    round((float) $currencyA, 2),
-                    round((float) $newsA, 2),
-                    round((float) $countryAScore, 2),
-                ],
-                'country_b' => [
-                    round((float) $weatherB, 2),
-                    round((float) $currencyB, 2),
-                    round((float) $newsB, 2),
-                    round((float) $countryBScore, 2),
-                ],
+                'country_a_label' => $countryAIso,
+                'country_b_label' => $countryBIso,
             ],
             'labels' => [
                 'country_a' => $countryAIso,
@@ -103,10 +116,10 @@
     @endphp
 
     <div class="comparison-page">
-        <section class="comparison-top-card">
+        <section class="comparison-top-grid">
             <div class="comparison-title-area">
                 <div class="page-eyebrow">
-                    COUNTRY COMPARISON DASHBOARD
+                    COUNTRY COMPARISON ENGINE
                 </div>
 
                 <h1>
@@ -114,106 +127,266 @@
                 </h1>
 
                 <p>
-                    Bandingkan Risk Score, cuaca, kurs, inflasi, dan berita
-                    dari dua negara terpilih.
+                    Bandingkan GDP, inflasi, cuaca, kurs, berita, dan total Risk Score dari dua negara.
                 </p>
             </div>
 
             <form
                 method="GET"
                 action="{{ route('comparison.index') }}"
-                class="comparison-form"
+                class="comparison-filter-card"
             >
-                <div class="comparison-form-label">
-                    Pilih Dua Negara
-                </div>
+                <select
+                    name="country_a"
+                    class="form-select"
+                >
+                    @foreach ($countries as $country)
+                        <option
+                            value="{{ $country->iso3_code }}"
+                            @selected($country->iso3_code === $countryAIso)
+                        >
+                            {{ $country->name }} ({{ $country->iso3_code }})
+                        </option>
+                    @endforeach
+                </select>
 
-                <div class="comparison-form-row">
-                    <select
-                        name="country_a"
-                        class="form-select comparison-select"
-                    >
-                        @foreach ($countries as $country)
-                            <option
-                                value="{{ $country->iso3_code }}"
-                                @selected($country->iso3_code === $countryAIso)
-                            >
-                                {{ $country->name }} ({{ $country->iso3_code }})
-                            </option>
-                        @endforeach
-                    </select>
+                <select
+                    name="country_b"
+                    class="form-select"
+                >
+                    @foreach ($countries as $country)
+                        <option
+                            value="{{ $country->iso3_code }}"
+                            @selected($country->iso3_code === $countryBIso)
+                        >
+                            {{ $country->name }} ({{ $country->iso3_code }})
+                        </option>
+                    @endforeach
+                </select>
 
-                    <select
-                        name="country_b"
-                        class="form-select comparison-select"
-                    >
-                        @foreach ($countries as $country)
-                            <option
-                                value="{{ $country->iso3_code }}"
-                                @selected($country->iso3_code === $countryBIso)
-                            >
-                                {{ $country->name }} ({{ $country->iso3_code }})
-                            </option>
-                        @endforeach
-                    </select>
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Bandingkan
+                </button>
 
-                    <button
-                        type="submit"
-                        class="btn btn-primary comparison-button"
-                    >
-                        Bandingkan
-                    </button>
-                </div>
+                <button
+                    type="submit"
+                    name="refresh"
+                    value="1"
+                    class="btn btn-outline-primary"
+                >
+                    Perbarui
+                </button>
             </form>
         </section>
 
-        <section class="comparison-result-grid">
-            <article class="comparison-result-card">
-                <div>
-                    <span>
-                        {{ $countryAName }}
-                    </span>
+        <section class="comparison-country-grid">
+            <article class="comparison-country-card">
+                <div class="comparison-country-main">
+                    <div class="comparison-flag">
+                        @if ($countryAFlag)
+                            <img
+                                src="{{ $countryAFlag }}"
+                                alt="Bendera {{ $countryAName }}"
+                            >
+                        @else
+                            <div class="comparison-flag-placeholder">
+                                <i class="bi bi-flag"></i>
+                            </div>
+                        @endif
+                    </div>
 
+                    <div>
+                        <span>
+                            Negara A
+                        </span>
+
+                        <strong>
+                            {{ $countryAName }}
+                        </strong>
+
+                        <small>
+                            {{ $countryAIso }} • {{ $countryARegion }}
+                        </small>
+                    </div>
+                </div>
+
+                <div class="comparison-score-box">
                     <strong>
                         {{ number_format((float) $countryAScore, 2, ',', '.') }}
                     </strong>
 
-                    <small>
-                        {{ $countryAOfficialName }}
-                    </small>
+                    <b class="{{ $riskClass($countryAScore) }}">
+                        {{ $riskLabel($countryAScore) }}
+                    </b>
                 </div>
-
-                <b class="{{ $riskClass($countryAScore) }}">
-                    {{ $riskLabel($countryAScore) }}
-                </b>
             </article>
 
-            <article class="comparison-result-card">
-                <div>
-                    <span>
-                        {{ $countryBName }}
-                    </span>
+            <article class="comparison-country-card">
+                <div class="comparison-country-main">
+                    <div class="comparison-flag">
+                        @if ($countryBFlag)
+                            <img
+                                src="{{ $countryBFlag }}"
+                                alt="Bendera {{ $countryBName }}"
+                            >
+                        @else
+                            <div class="comparison-flag-placeholder">
+                                <i class="bi bi-flag"></i>
+                            </div>
+                        @endif
+                    </div>
 
+                    <div>
+                        <span>
+                            Negara B
+                        </span>
+
+                        <strong>
+                            {{ $countryBName }}
+                        </strong>
+
+                        <small>
+                            {{ $countryBIso }} • {{ $countryBRegion }}
+                        </small>
+                    </div>
+                </div>
+
+                <div class="comparison-score-box">
                     <strong>
                         {{ number_format((float) $countryBScore, 2, ',', '.') }}
                     </strong>
 
-                    <small>
-                        {{ $countryBOfficialName }}
-                    </small>
+                    <b class="{{ $riskClass($countryBScore) }}">
+                        {{ $riskLabel($countryBScore) }}
+                    </b>
                 </div>
+            </article>
+        </section>
 
-                <b class="{{ $riskClass($countryBScore) }}">
-                    {{ $riskLabel($countryBScore) }}
-                </b>
+        <section class="comparison-metric-grid">
+            <article class="comparison-metric-card">
+                <span>GDP</span>
+
+                <strong>
+                    {{ $gdpA }}
+                </strong>
+
+                <small>
+                    {{ $countryAIso }}
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>GDP</span>
+
+                <strong>
+                    {{ $gdpB }}
+                </strong>
+
+                <small>
+                    {{ $countryBIso }}
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>Inflasi</span>
+
+                <strong>
+                    {{ $inflationValueA }}
+                    /
+                    {{ $inflationValueB }}
+                </strong>
+
+                <small>
+                    Nilai ekonomi
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>Mata Uang</span>
+
+                <strong>
+                    {{ $currencyCodeA }}
+                    /
+                    {{ $currencyCodeB }}
+                </strong>
+
+                <small>
+                    Kode kurs
+                </small>
+            </article>
+        </section>
+
+        <section class="comparison-metric-grid">
+            <article class="comparison-metric-card">
+                <span>Cuaca</span>
+
+                <strong>
+                    {{ number_format((float) $weatherA, 2, ',', '.') }}
+                    /
+                    {{ number_format((float) $weatherB, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Risiko cuaca
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>Inflasi Risk</span>
+
+                <strong>
+                    {{ number_format((float) $inflationA, 2, ',', '.') }}
+                    /
+                    {{ number_format((float) $inflationB, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Risiko inflasi
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>Kurs Risk</span>
+
+                <strong>
+                    {{ number_format((float) $currencyA, 2, ',', '.') }}
+                    /
+                    {{ number_format((float) $currencyB, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Risiko mata uang
+                </small>
+            </article>
+
+            <article class="comparison-metric-card">
+                <span>Berita</span>
+
+                <strong>
+                    {{ number_format((float) $newsA, 2, ',', '.') }}
+                    /
+                    {{ number_format((float) $newsB, 2, ',', '.') }}
+                </strong>
+
+                <small>
+                    Sentimen berita
+                </small>
             </article>
         </section>
 
         <section class="comparison-chart-grid">
             <article class="comparison-chart-card">
-                <h3>
-                    Risiko Total
-                </h3>
+                <div class="comparison-card-heading">
+                    <span>Risk Score</span>
+
+                    <h2>
+                        Risiko Total
+                    </h2>
+                </div>
 
                 <div class="chart-compact-box">
                     <canvas id="comparisonRiskChart"></canvas>
@@ -221,9 +394,13 @@
             </article>
 
             <article class="comparison-chart-card">
-                <h3>
-                    Indikator Ekonomi
-                </h3>
+                <div class="comparison-card-heading">
+                    <span>Economic</span>
+
+                    <h2>
+                        Indikator Ekonomi
+                    </h2>
+                </div>
 
                 <div class="chart-compact-box">
                     <canvas id="comparisonEconomicChart"></canvas>
@@ -231,9 +408,13 @@
             </article>
 
             <article class="comparison-chart-card">
-                <h3>
-                    Risiko Operasional
-                </h3>
+                <div class="comparison-card-heading">
+                    <span>Operational</span>
+
+                    <h2>
+                        Risiko Operasional
+                    </h2>
+                </div>
 
                 <div class="chart-compact-box">
                     <canvas id="comparisonOperationalChart"></canvas>
@@ -242,18 +423,16 @@
         </section>
 
         <section class="comparison-detail-card">
-            <div class="comparison-detail-heading">
-                <h2>
-                    Ringkasan Detail
-                </h2>
+            <div class="comparison-card-heading">
+                <span>Ringkasan Detail</span>
 
-                <p>
-                    Perbandingan komponen risiko utama negara terpilih.
-                </p>
+                <h2>
+                    Perbandingan Komponen Risiko
+                </h2>
             </div>
 
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
+            <div class="table-responsive comparison-table-wrapper">
+                <table class="table align-middle mb-0 comparison-table">
                     <thead>
                         <tr>
                             <th>Komponen</th>
@@ -309,36 +488,29 @@
     <style>
         .comparison-page {
             width: 100%;
-            max-width: 100%;
-            min-width: 0;
-            overflow-x: hidden;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 14px 18px 24px;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 10px;
         }
 
-        .comparison-top-card,
-        .comparison-result-card,
-        .comparison-chart-card,
-        .comparison-detail-card {
-            background: #ffffff;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            border-radius: 18px;
-            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.045);
-        }
-
-        .comparison-top-card {
+        .comparison-top-grid {
             display: grid;
-            grid-template-columns: minmax(280px, 0.85fr) minmax(420px, 1.15fr);
-            gap: 20px;
+            grid-template-columns: minmax(0, 1fr) minmax(560px, 700px);
+            gap: 12px;
             align-items: end;
-            padding: 22px 24px;
+        }
+
+        .comparison-title-area {
+            padding-left: 6px;
         }
 
         .comparison-title-area h1 {
-            margin: 0 0 8px;
+            margin: 0 0 4px;
             color: #111827;
-            font-size: clamp(1.7rem, 2.6vw, 2.35rem);
+            font-size: 1.55rem;
             font-weight: 900;
             line-height: 1.1;
         }
@@ -346,93 +518,132 @@
         .comparison-title-area p {
             margin: 0;
             color: #7c8aa5;
-            font-size: 0.94rem;
-            line-height: 1.55;
-            max-width: 620px;
+            font-size: 0.82rem;
+            line-height: 1.42;
+            max-width: 660px;
         }
 
-        .comparison-form {
-            min-width: 0;
+        .comparison-filter-card,
+        .comparison-country-card,
+        .comparison-metric-card,
+        .comparison-chart-card,
+        .comparison-detail-card {
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 15px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
 
-        .comparison-form-label {
-            margin-bottom: 8px;
-            color: #334155;
-            font-size: 0.9rem;
-            font-weight: 800;
-        }
-
-        .comparison-form-row {
+        .comparison-filter-card {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 118px;
-            gap: 10px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 100px 100px;
+            gap: 7px;
             align-items: center;
+            padding: 9px 10px;
         }
 
-        .comparison-select {
-            min-width: 0;
-            width: 100%;
-            height: 46px;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            padding: 0 14px;
-        }
-
-        .comparison-button {
-            height: 46px;
-            border-radius: 12px;
-            font-size: 0.94rem;
+        .comparison-filter-card .form-select,
+        .comparison-filter-card .btn {
+            height: 36px;
+            border-radius: 9px;
+            font-size: 0.78rem;
             font-weight: 800;
-            padding-inline: 12px;
-            white-space: nowrap;
         }
 
-        .comparison-result-grid {
+        .comparison-country-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 18px;
+            gap: 10px;
         }
 
-        .comparison-result-card {
-            min-width: 0;
+        .comparison-country-card {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            gap: 18px;
-            padding: 22px 24px;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 12px;
         }
 
-        .comparison-result-card span {
+        .comparison-country-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .comparison-flag {
+            width: 40px;
+            height: 27px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #e2e8f0;
+            flex: 0 0 auto;
+        }
+
+        .comparison-flag img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .comparison-flag-placeholder {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            place-items: center;
+            color: #64748b;
+        }
+
+        .comparison-country-main span,
+        .comparison-metric-card span,
+        .comparison-card-heading span {
             display: block;
+            margin-bottom: 3px;
             color: #7c8aa5;
-            font-size: 0.9rem;
-            font-weight: 700;
-            margin-bottom: 8px;
+            font-size: 0.66rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.035em;
         }
 
-        .comparison-result-card strong {
+        .comparison-country-main strong {
             display: block;
             color: #111827;
-            font-size: clamp(2rem, 3vw, 2.7rem);
+            font-size: 0.95rem;
             font-weight: 900;
-            line-height: 1;
-            margin-bottom: 8px;
+            line-height: 1.2;
         }
 
-        .comparison-result-card small {
+        .comparison-country-main small {
             display: block;
             color: #7c8aa5;
-            font-size: 0.9rem;
-            line-height: 1.4;
+            font-size: 0.7rem;
+            line-height: 1.3;
         }
 
-        .comparison-result-card b {
-            min-width: 128px;
-            text-align: center;
-            padding: 9px 12px;
-            border-radius: 10px;
-            font-size: 0.86rem;
-            font-weight: 800;
+        .comparison-score-box {
+            text-align: right;
+            flex: 0 0 auto;
+        }
+
+        .comparison-score-box strong {
+            display: block;
+            color: #111827;
+            font-size: 1.08rem;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .comparison-score-box b {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 104px;
+            padding: 5px 8px;
+            border-radius: 999px;
+            font-size: 0.66rem;
+            font-weight: 850;
             white-space: nowrap;
         }
 
@@ -460,98 +671,134 @@
             border: 1px solid rgba(239, 68, 68, 0.28);
         }
 
+        .comparison-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .comparison-metric-card {
+            padding: 11px 12px;
+            min-width: 0;
+        }
+
+        .comparison-metric-card strong {
+            display: block;
+            color: #111827;
+            font-size: 0.92rem;
+            font-weight: 900;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+
+        .comparison-metric-card small {
+            display: block;
+            margin-top: 4px;
+            color: #7c8aa5;
+            font-size: 0.68rem;
+        }
+
         .comparison-chart-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 18px;
+            gap: 10px;
         }
 
         .comparison-chart-card {
+            padding: 12px;
             min-width: 0;
-            padding: 20px;
         }
 
-        .comparison-chart-card h3 {
-            margin: 0 0 12px;
+        .comparison-card-heading {
+            margin-bottom: 8px;
+        }
+
+        .comparison-card-heading h2 {
+            margin: 0;
             color: #111827;
-            font-size: 1.08rem;
+            font-size: 0.94rem;
             font-weight: 900;
             line-height: 1.25;
         }
 
         .chart-compact-box {
             width: 100%;
-            height: 190px;
+            height: 145px;
         }
 
         .comparison-detail-card {
-            padding: 22px 24px;
+            padding: 12px;
         }
 
-        .comparison-detail-heading h2 {
-            margin: 0 0 6px;
-            color: #111827;
-            font-size: 1.35rem;
-            font-weight: 900;
+        .comparison-table-wrapper {
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 13px;
+            overflow: auto;
         }
 
-        .comparison-detail-heading p {
-            margin: 0 0 16px;
-            color: #7c8aa5;
-            font-size: 0.94rem;
-            line-height: 1.5;
+        .comparison-table {
+            min-width: 720px;
         }
 
-        .comparison-detail-card table {
-            min-width: 760px;
-        }
-
-        .comparison-detail-card thead th {
+        .comparison-table thead th {
             background: #f8fafc;
             color: #64748b;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.035em;
             white-space: nowrap;
         }
 
-        .comparison-detail-card tbody td {
+        .comparison-table tbody td {
             color: #334155;
-            font-size: 0.9rem;
+            font-size: 0.78rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
         }
 
         @media (max-width: 1280px) {
-            .comparison-top-card {
-                grid-template-columns: 1fr;
-            }
-
+            .comparison-top-grid,
             .comparison-chart-grid {
                 grid-template-columns: 1fr;
             }
 
-            .chart-compact-box {
-                height: 210px;
+            .comparison-filter-card {
+                grid-template-columns: 1fr 1fr auto auto;
             }
         }
 
         @media (max-width: 860px) {
-            .comparison-form-row,
-            .comparison-result-grid {
+            .comparison-country-grid,
+            .comparison-metric-grid,
+            .comparison-filter-card {
                 grid-template-columns: 1fr;
             }
 
-            .comparison-button {
-                width: 100%;
-            }
-
-            .comparison-result-card {
+            .comparison-country-card {
                 align-items: flex-start;
                 flex-direction: column;
             }
 
-            .comparison-result-card b {
+            .comparison-score-box {
+                text-align: left;
+            }
+
+            .comparison-filter-card .btn {
                 width: 100%;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .comparison-page {
+                padding: 12px;
+            }
+
+            .comparison-title-area {
+                padding-left: 0;
+            }
+
+            .comparison-title-area h1 {
+                font-size: 1.4rem;
             }
         }
     </style>
@@ -593,7 +840,7 @@
                     x: {
                         ticks: {
                             font: {
-                                size: 10
+                                size: 9
                             }
                         },
                         grid: {
@@ -602,10 +849,9 @@
                     },
                     y: {
                         beginAtZero: true,
-                        suggestedMax: 100,
                         ticks: {
                             font: {
-                                size: 10
+                                size: 9
                             }
                         }
                     }
@@ -614,9 +860,9 @@
                     legend: {
                         position: 'top',
                         labels: {
-                            boxWidth: 14,
+                            boxWidth: 10,
                             font: {
-                                size: 11
+                                size: 10
                             }
                         }
                     }
@@ -636,7 +882,7 @@
                                 data: chartData.risk ? chartData.risk.values : [],
                                 borderWidth: 1,
                                 borderRadius: 6,
-                                maxBarThickness: 38
+                                maxBarThickness: 26
                             }
                         ]
                     },
@@ -657,14 +903,14 @@
                                 data: chartData.economic ? chartData.economic.country_a : [],
                                 borderWidth: 1,
                                 borderRadius: 5,
-                                maxBarThickness: 28
+                                maxBarThickness: 20
                             },
                             {
                                 label: countryBLabel,
                                 data: chartData.economic ? chartData.economic.country_b : [],
                                 borderWidth: 1,
                                 borderRadius: 5,
-                                maxBarThickness: 28
+                                maxBarThickness: 20
                             }
                         ]
                     },
@@ -685,14 +931,14 @@
                                 data: chartData.operational ? chartData.operational.country_a : [],
                                 borderWidth: 1,
                                 borderRadius: 5,
-                                maxBarThickness: 28
+                                maxBarThickness: 20
                             },
                             {
                                 label: countryBLabel,
                                 data: chartData.operational ? chartData.operational.country_b : [],
                                 borderWidth: 1,
                                 borderRadius: 5,
-                                maxBarThickness: 28
+                                maxBarThickness: 20
                             }
                         ]
                     },

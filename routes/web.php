@@ -5,8 +5,11 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\ComparisonController;
 use App\Http\Controllers\CountryMonitoringController;
 use App\Http\Controllers\CurrencyController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\VisualizationController;
 use App\Http\Controllers\PortController;
+use App\Http\Controllers\RiskController;
 use App\Http\Controllers\WatchlistController;
 use App\Http\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
@@ -26,13 +29,16 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/', 'App\Http\Controllers\DashboardController@index')
+    Route::get('/', [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    Route::get('/api/dashboard', 'App\Http\Controllers\DashboardController@show')
+    Route::get('/api/dashboard', [DashboardController::class, 'show'])
         ->name('api.dashboard.show');
 
-    Route::get('/api/risk', 'App\Http\Controllers\DashboardController@show')
+    Route::get('/risk', [RiskController::class, 'index'])
+        ->name('risk.index');
+
+    Route::get('/api/risk', [RiskController::class, 'show'])
         ->name('api.risk.show');
 
     Route::get('/countries', [CountryMonitoringController::class, 'index'])
@@ -77,6 +83,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/news', [NewsController::class, 'show'])
         ->name('api.news.show');
 
+    Route::get('/visualization', [VisualizationController::class, 'index'])
+        ->name('visualization.index');
+
+    Route::get('/api/visualization', [VisualizationController::class, 'show'])
+        ->name('api.visualization.show');
+        
     Route::get('/ports', [PortController::class, 'index'])
         ->name('ports.index');
 

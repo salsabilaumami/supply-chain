@@ -87,11 +87,13 @@ class PortController extends Controller
 
         $chartPorts = $ports
             ->sortByDesc('risk_score')
-            ->take(30)
+            ->take(12)
             ->values();
 
         $chartLabels = $chartPorts
-            ->map(fn (array $port) => $port['code'] ?? $port['name'] ?? '-')
+            ->map(function (array $port) {
+                return $port['code'] ?: ($port['name'] ?? '-');
+            })
             ->values()
             ->all();
 
@@ -118,6 +120,7 @@ class PortController extends Controller
             'selectedCountry' => $selectedCountry,
             'ports' => $ports,
             'selectedPort' => $selectedPort,
+            'selectedPortKeyword' => $selectedPortKeyword,
             'defaultLatitude' => (float) $defaultLatitude,
             'defaultLongitude' => (float) $defaultLongitude,
             'source' => $source,
@@ -129,6 +132,10 @@ class PortController extends Controller
                 'highest_risk_port' => $highestRisk['name'] ?? null,
                 'highest_risk_score' => $highestRisk
                     ? round((float) ($highestRisk['risk_score'] ?? 0), 2)
+                    : 0.0,
+                'selected_port_name' => $selectedPort['name'] ?? null,
+                'selected_port_score' => $selectedPort
+                    ? round((float) ($selectedPort['risk_score'] ?? 0), 2)
                     : 0.0,
             ],
             'chartData' => [
@@ -154,11 +161,9 @@ class PortController extends Controller
                     'source' => 'World Port Index Dataset',
                     'source_type' => 'database',
                     'osm_id' => null,
-
                     'country' => $port->country
                         ? $this->formatCountry($port->country)
                         : null,
-
                     'name' => $port->name,
                     'code' => $port->code ?: 'WPI-' . $port->id,
                     'city' => $port->city ?: '-',

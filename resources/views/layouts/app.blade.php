@@ -64,6 +64,17 @@
                 </a>
 
                 <a
+                    href="{{ route('risk.index') }}"
+                    class="sidebar-link {{ request()->routeIs('risk.*') ? 'active' : '' }}"
+                >
+                    <i class="bi bi-diagram-3"></i>
+
+                    <span>
+                        Risk Scoring Engine
+                    </span>
+                </a>
+
+                <a
                     href="{{ route('countries.index') }}"
                     class="sidebar-link {{ request()->routeIs('countries.*') ? 'active' : '' }}"
                 >
@@ -106,6 +117,17 @@
                         News Intelligence
                     </span>
                 </a>
+
+                <a
+                        href="{{ route('visualization.index') }}"
+                    class="sidebar-link {{ request()->routeIs('visualization.*') ? 'active' : '' }}"
+>
+    <i class="bi bi-graph-up-arrow"></i>
+
+    <span>
+        Data Visualization
+    </span>
+</a>
 
                 <div class="nav-section">
                     LOGISTICS
