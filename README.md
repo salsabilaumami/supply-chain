@@ -72,12 +72,18 @@ Tujuan utama project ini adalah membangun sistem monitoring risiko rantai pasok 
 
 | Teknologi | Keterangan |
 |---|---|
-| PHP 8.4 | Bahasa pemrograman backend |
+| PHP 8.3 | Bahasa pemrograman backend |
 | Laravel 13 | Framework utama aplikasi |
 | MySQL | Database relasional |
 | Eloquent ORM | Pengelolaan model dan database |
 | Laravel Migration | Pengelolaan struktur tabel |
 | Laravel Seeder | Pengisian data awal |
+
+### Frontend
+- PHP 8.3
+- Laravel 13
+- MySQL
+>>>>>>> 6c779f8 (Update dependencies for PHP 8.3 hosting)
 
 ### Frontend
 
