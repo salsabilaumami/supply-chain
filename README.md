@@ -15,7 +15,7 @@ Sistem ini bukan aplikasi pelacakan paket berdasarkan nomor resi, tetapi merupak
 | Nama Project | Global Supply Chain Risk Intelligence Platform |
 | Jenis Project | Web Application |
 | Framework | Laravel 13 |
-| Bahasa Pemrograman | PHP 8.4, JavaScript |
+| Bahasa Pemrograman | PHP 8.3, JavaScript |
 | Database | MySQL |
 | Fokus Sistem | Supply Chain Risk Monitoring |
 | Visualisasi | Chart.js, Leaflet.js, OpenStreetMap |
