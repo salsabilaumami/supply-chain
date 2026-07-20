@@ -40,6 +40,50 @@ class ExchangeRateService
         );
     }
 
+    public function convertCurrency(
+        string $fromCurrency,
+        string $toCurrency,
+        float $amount = 1
+    ): array {
+        $fromCurrency = $this->normalizeCurrencyCode($fromCurrency);
+        $toCurrency = $this->normalizeCurrencyCode($toCurrency);
+        $amount = max(0, $amount);
+
+        if ($fromCurrency === $toCurrency) {
+            return [
+                'from_currency' => $fromCurrency,
+                'to_currency' => $toCurrency,
+                'amount' => $amount,
+                'rate' => 1.0,
+                'reverse_rate' => 1.0,
+                'converted_amount' => $amount,
+                'recorded_at' => now(),
+            ];
+        }
+
+        $payload = $this->requestLatestRates($fromCurrency);
+        $rates = $payload['conversion_rates'] ?? $payload['rates'] ?? [];
+
+        if (!array_key_exists($toCurrency, $rates)) {
+            throw new RuntimeException(
+                'Mata uang ' . $toCurrency . ' tidak tersedia.'
+            );
+        }
+
+        $rate = (float) $rates[$toCurrency];
+        $convertedAmount = $amount * $rate;
+
+        return [
+            'from_currency' => $fromCurrency,
+            'to_currency' => $toCurrency,
+            'amount' => $amount,
+            'rate' => $rate,
+            'reverse_rate' => $rate > 0 ? 1 / $rate : null,
+            'converted_amount' => $convertedAmount,
+            'recorded_at' => $this->resolveRecordedAt($payload),
+        ];
+    }
+
     public function getRateHistory(
         Country $country,
         string $baseCurrency = 'USD',
@@ -62,37 +106,7 @@ class ExchangeRateService
         string $baseCurrency,
         string $targetCurrency
     ): ExchangeRate {
-        $baseUrl = rtrim((string) config('services.exchange_rate.base_url'), '/');
-        $apiKey = config('services.exchange_rate.api_key');
-
-        if (empty($baseUrl)) {
-            throw new RuntimeException('EXCHANGE_RATE_BASE_URL belum tersedia di .env.');
-        }
-
-        if (empty($apiKey)) {
-            throw new RuntimeException('EXCHANGE_RATE_API_KEY belum tersedia di .env.');
-        }
-
-        $response = Http::acceptJson()
-            ->timeout(20)
-            ->retry(3, 700)
-            ->get($baseUrl . '/' . $apiKey . '/latest/' . $baseCurrency);
-
-        if ($response->failed()) {
-            throw new RuntimeException(
-                'Gagal mengambil data kurs. Status: ' . $response->status()
-            );
-        }
-
-        $payload = $response->json();
-
-        if (($payload['result'] ?? null) !== 'success') {
-            throw new RuntimeException(
-                'Respons kurs tidak berhasil. Pesan: ' .
-                ($payload['error-type'] ?? 'Tidak diketahui')
-            );
-        }
-
+        $payload = $this->requestLatestRates($baseCurrency);
         $rates = $payload['conversion_rates'] ?? $payload['rates'] ?? [];
 
         if (!array_key_exists($targetCurrency, $rates)) {
@@ -134,6 +148,42 @@ class ExchangeRateService
                 'fetched_at' => now(),
             ]
         );
+    }
+
+    private function requestLatestRates(string $baseCurrency): array
+    {
+        $baseUrl = rtrim((string) config('services.exchange_rate.base_url'), '/');
+        $apiKey = config('services.exchange_rate.api_key');
+
+        if (empty($baseUrl)) {
+            throw new RuntimeException('EXCHANGE_RATE_BASE_URL belum tersedia di .env.');
+        }
+
+        if (empty($apiKey)) {
+            throw new RuntimeException('EXCHANGE_RATE_API_KEY belum tersedia di .env.');
+        }
+
+        $response = Http::acceptJson()
+            ->timeout(20)
+            ->retry(3, 700)
+            ->get($baseUrl . '/' . $apiKey . '/latest/' . $baseCurrency);
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Gagal mengambil data kurs. Status: ' . $response->status()
+            );
+        }
+
+        $payload = $response->json();
+
+        if (($payload['result'] ?? null) !== 'success') {
+            throw new RuntimeException(
+                'Respons kurs tidak berhasil. Pesan: '
+                . ($payload['error-type'] ?? 'Tidak diketahui')
+            );
+        }
+
+        return $payload;
     }
 
     private function getFreshCachedRate(

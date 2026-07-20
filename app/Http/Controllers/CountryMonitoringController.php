@@ -53,8 +53,11 @@ class CountryMonitoringController extends Controller
         ],
     ];
 
-    public function index(Request $request): View
-    {
+    public function index(
+        Request $request,
+        WorldBankService $worldBankService,
+        WeatherService $weatherService
+    ): View {
         $countries = Country::query()
             ->orderBy('name')
             ->get();
@@ -63,6 +66,18 @@ class CountryMonitoringController extends Controller
             $request,
             $countries
         );
+
+        $syncWarnings = [];
+
+        if ($selectedCountry) {
+            $this->syncRequiredCountryData(
+                $selectedCountry,
+                $worldBankService,
+                $weatherService,
+                $request->boolean('refresh'),
+                $syncWarnings
+            );
+        }
 
         $isFavorite = false;
 
@@ -77,6 +92,7 @@ class CountryMonitoringController extends Controller
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
             'isFavorite' => $isFavorite,
+            'syncWarnings' => array_values(array_unique($syncWarnings)),
             'economicSummary' => $selectedCountry
                 ? $this->getEconomicSummary($selectedCountry)
                 : [],
@@ -95,8 +111,11 @@ class CountryMonitoringController extends Controller
         ]);
     }
 
-    public function show(Request $request): JsonResponse
-    {
+    public function show(
+        Request $request,
+        WorldBankService $worldBankService,
+        WeatherService $weatherService
+    ): JsonResponse {
         $countries = Country::query()
             ->orderBy('name')
             ->get();
@@ -105,6 +124,18 @@ class CountryMonitoringController extends Controller
             $request,
             $countries
         );
+
+        $syncWarnings = [];
+
+        if ($selectedCountry) {
+            $this->syncRequiredCountryData(
+                $selectedCountry,
+                $worldBankService,
+                $weatherService,
+                $request->boolean('refresh'),
+                $syncWarnings
+            );
+        }
 
         $isFavorite = false;
 
@@ -137,10 +168,60 @@ class CountryMonitoringController extends Controller
             'risk_score' => $selectedCountry
                 ? $this->getRiskSummary($selectedCountry)
                 : null,
+            'sync_warnings' => array_values(array_unique($syncWarnings)),
             'countries' => $countries
                 ->map(fn (Country $country) => $this->formatCountry($country))
                 ->values(),
         ]);
+    }
+
+    private function syncRequiredCountryData(
+        Country $country,
+        WorldBankService $worldBankService,
+        WeatherService $weatherService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): void {
+        try {
+            if ($forceRefresh || $this->economicRequiredDataIsMissing($country)) {
+                $worldBankService->syncCountryIndicators($country);
+            }
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'World Bank: ' . $exception->getMessage();
+        }
+
+        try {
+            if ($forceRefresh || !$this->hasWeatherData($country)) {
+                $weatherService->getCurrentWeather($country, $forceRefresh);
+            }
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'Weather: ' . $exception->getMessage();
+        }
+    }
+
+    private function economicRequiredDataIsMissing(Country $country): bool
+    {
+        $requiredCodes = [
+            self::ECONOMIC_INDICATORS['gdp']['code'],
+            self::ECONOMIC_INDICATORS['inflation']['code'],
+            self::ECONOMIC_INDICATORS['population']['code'],
+        ];
+
+        $availableCount = EconomicIndicator::query()
+            ->where('country_id', $country->id)
+            ->whereIn('indicator_code', $requiredCodes)
+            ->whereNotNull('value')
+            ->distinct('indicator_code')
+            ->count('indicator_code');
+
+        return $availableCount < count($requiredCodes);
+    }
+
+    private function hasWeatherData(Country $country): bool
+    {
+        return WeatherData::query()
+            ->where('country_id', $country->id)
+            ->exists();
     }
 
     public function syncAll(
@@ -394,8 +475,6 @@ class CountryMonitoringController extends Controller
         Country $country,
         RiskScoringService $riskScoringService
     ): RiskScore {
-        $weights = $riskScoringService->getWeights();
-
         $weather = WeatherData::query()
             ->where('country_id', $country->id)
             ->latest('recorded_at')
@@ -409,38 +488,41 @@ class CountryMonitoringController extends Controller
         $currency = ExchangeRate::query()
             ->where('country_id', $country->id)
             ->where('base_currency', 'USD')
-            ->where('target_currency', $country->currency_code)
+            ->when(
+                $country->currency_code,
+                fn ($query) => $query->where('target_currency', $country->currency_code)
+            )
             ->latest('recorded_at')
             ->first();
 
         $weatherScore = $weather
-            ? (float) $weather->weather_risk
-            : 50.0;
+            ? $riskScoringService->calculateWeatherScore(
+                (float) ($weather->precipitation ?? 0),
+                (float) ($weather->wind_speed ?? 0),
+                (int) ($weather->weather_code ?? 0)
+            )
+            : 25.0;
 
         $inflationRaw = $inflation
-            ? (float) $inflation->value
+            ? $this->getEconomicValue($inflation)
             : null;
 
-        $inflationScore = $inflationRaw !== null
-            ? $riskScoringService->calculateInflationScore($inflationRaw)
-            : 50.0;
+        $inflationScore = $riskScoringService->calculateInflationScore(
+            $inflationRaw
+        );
 
-        $currencyChange = $currency && $currency->change_percentage !== null
-            ? (float) $currency->change_percentage
-            : null;
-
-        $currencyScore = $currency
-            ? (float) $currency->currency_risk
-            : 50.0;
-
-        if ($currency && $currencyChange !== null) {
-            $currencyScore = $riskScoringService
-                ->calculateCurrencyScore($currencyChange);
-        }
+        $currencyScore = $riskScoringService->calculateCurrencyScore(
+            $currency?->change_percentage !== null
+                ? (float) $currency->change_percentage
+                : null,
+            $currency?->currency_risk !== null
+                ? (float) $currency->currency_risk
+                : null
+        );
 
         $newsScore = $this->getNewsRiskScore($country);
 
-        $totalScore = $riskScoringService->calculateTotalScore(
+        $result = $riskScoringService->calculateDetailedScore(
             $weatherScore,
             $inflationScore,
             $currencyScore,
@@ -449,35 +531,39 @@ class CountryMonitoringController extends Controller
 
         $riskScore = RiskScore::create([
             'country_id' => $country->id,
-            'weather_score' => $weatherScore,
-            'inflation_score' => $inflationScore,
-            'currency_score' => $currencyScore,
-            'news_score' => $newsScore,
-            'total_score' => $totalScore,
-            'risk_level' => $riskScoringService->determineRiskLevel($totalScore),
+            'weather_score' => $result['weather_score'],
+            'inflation_score' => $result['inflation_score'],
+            'currency_score' => $result['currency_score'],
+            'news_score' => $result['news_score'],
+            'total_score' => $result['total_score'],
+            'risk_level' => $result['risk_level'],
             'calculated_at' => now(),
         ]);
 
         $components = [
             'weather' => [
-                'raw_value' => $weather ? (float) $weather->weather_risk : null,
-                'normalized_score' => $weatherScore,
-                'weight' => $weights['weather'],
+                'raw_value' => $weather ? (float) ($weather->weather_risk ?? $result['weather_score']) : null,
+                'normalized_score' => $result['weather_score'],
+                'weight' => RiskScoringService::WEATHER_WEIGHT,
+                'weighted_score' => $result['weather_weighted'],
             ],
             'inflation' => [
                 'raw_value' => $inflationRaw,
-                'normalized_score' => $inflationScore,
-                'weight' => $weights['inflation'],
+                'normalized_score' => $result['inflation_score'],
+                'weight' => RiskScoringService::INFLATION_WEIGHT,
+                'weighted_score' => $result['inflation_weighted'],
             ],
             'currency' => [
-                'raw_value' => $currencyChange,
-                'normalized_score' => $currencyScore,
-                'weight' => $weights['currency'],
+                'raw_value' => $currency?->change_percentage,
+                'normalized_score' => $result['currency_score'],
+                'weight' => RiskScoringService::CURRENCY_WEIGHT,
+                'weighted_score' => $result['currency_weighted'],
             ],
             'news' => [
                 'raw_value' => $newsScore,
-                'normalized_score' => $newsScore,
-                'weight' => $weights['news'],
+                'normalized_score' => $result['news_score'],
+                'weight' => RiskScoringService::NEWS_WEIGHT,
+                'weighted_score' => $result['news_weighted'],
             ],
         ];
 
@@ -488,10 +574,7 @@ class CountryMonitoringController extends Controller
                 'raw_value' => $component['raw_value'],
                 'normalized_score' => $component['normalized_score'],
                 'weight' => $component['weight'],
-                'weighted_score' => round(
-                    $component['normalized_score'] * $component['weight'],
-                    2
-                ),
+                'weighted_score' => $component['weighted_score'],
             ]);
         }
 
@@ -511,8 +594,10 @@ class CountryMonitoringController extends Controller
         );
 
         $selectedCountry = Country::query()
-            ->where('iso3_code', $selectedIsoCode)
-            ->orWhere('iso2_code', $selectedIsoCode)
+            ->where(function ($query) use ($selectedIsoCode) {
+                $query->where('iso3_code', $selectedIsoCode)
+                    ->orWhere('iso2_code', $selectedIsoCode);
+            })
             ->first();
 
         if ($selectedCountry) {
@@ -537,8 +622,10 @@ class CountryMonitoringController extends Controller
         );
 
         return Country::query()
-            ->where('iso3_code', $selectedIsoCode)
-            ->orWhere('iso2_code', $selectedIsoCode)
+            ->where(function ($query) use ($selectedIsoCode) {
+                $query->where('iso3_code', $selectedIsoCode)
+                    ->orWhere('iso2_code', $selectedIsoCode);
+            })
             ->first();
     }
 
@@ -573,10 +660,7 @@ class CountryMonitoringController extends Controller
 
         foreach (self::ECONOMIC_INDICATORS as $key => $meta) {
             $indicator = $latestIndicators->get($meta['code']);
-
-            $value = $indicator
-                ? (float) $indicator->value
-                : null;
+            $value = $this->getEconomicValue($indicator);
 
             $summary[$key] = [
                 'key' => $key,
@@ -616,16 +700,16 @@ class CountryMonitoringController extends Controller
             ];
         }
 
-        $risk = (float) $weather->weather_risk;
+        $risk = (float) ($weather->weather_risk ?? 0);
 
         return [
             'available' => true,
-            'temperature' => (float) $weather->temperature,
-            'precipitation' => (float) $weather->precipitation,
-            'wind_speed' => (float) $weather->wind_speed,
-            'weather_code' => (int) $weather->weather_code,
+            'temperature' => (float) ($weather->temperature ?? 0),
+            'precipitation' => (float) ($weather->precipitation ?? 0),
+            'wind_speed' => (float) ($weather->wind_speed ?? 0),
+            'weather_code' => (int) ($weather->weather_code ?? 0),
             'weather_description' => $this->describeWeatherCode(
-                (int) $weather->weather_code
+                (int) ($weather->weather_code ?? 0)
             ),
             'weather_risk' => $risk,
             'risk_label' => $this->riskScoreLabel($risk),
@@ -639,7 +723,10 @@ class CountryMonitoringController extends Controller
         $exchangeRate = ExchangeRate::query()
             ->where('country_id', $country->id)
             ->where('base_currency', 'USD')
-            ->where('target_currency', $country->currency_code)
+            ->when(
+                $country->currency_code,
+                fn ($query) => $query->where('target_currency', $country->currency_code)
+            )
             ->latest('recorded_at')
             ->first();
 
@@ -659,11 +746,11 @@ class CountryMonitoringController extends Controller
             ];
         }
 
-        $rate = (float) $exchangeRate->rate;
+        $rate = (float) ($exchangeRate->rate ?? 0);
         $changePercentage = $exchangeRate->change_percentage !== null
             ? (float) $exchangeRate->change_percentage
             : null;
-        $currencyRisk = (float) $exchangeRate->currency_risk;
+        $currencyRisk = (float) ($exchangeRate->currency_risk ?? 0);
 
         return [
             'available' => true,
@@ -822,10 +909,25 @@ class CountryMonitoringController extends Controller
             ->get();
 
         if ($sentiments->isEmpty()) {
-            return 50.0;
+            return 35.0;
         }
 
         return round((float) $sentiments->avg('risk_score'), 2);
+    }
+
+    private function getEconomicValue(?EconomicIndicator $indicator): ?float
+    {
+        if (!$indicator) {
+            return null;
+        }
+
+        $value = $indicator->value
+            ?? $indicator->raw_value
+            ?? null;
+
+        return is_numeric($value)
+            ? (float) $value
+            : null;
     }
 
     private function formatEconomicValue(
@@ -878,7 +980,7 @@ class CountryMonitoringController extends Controller
         return match ($level) {
             'critical' => 'Risiko Kritis',
             'high' => 'Risiko Tinggi',
-            'moderate' => 'Risiko Sedang',
+            'moderate', 'medium' => 'Risiko Sedang',
             'low' => 'Risiko Rendah',
             default => 'Belum dihitung',
         };

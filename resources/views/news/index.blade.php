@@ -1,62 +1,45 @@
 @extends('layouts.app')
 
-@section('title', 'Intelijen Berita')
+@section('title', 'News Intelligence')
 
 @section('content')
-    @php
-        $averageRisk = $summary['average_risk_score'] ?? 0;
-
-        $riskBadgeClass = match (true) {
-            $averageRisk >= 75 => 'bg-danger',
-            $averageRisk >= 50 => 'bg-warning text-dark',
-            $averageRisk >= 25 => 'badge-risk-medium',
-            default => 'badge-risk-low',
-        };
-    @endphp
-
     <div class="news-page">
-        <section class="news-top-grid">
-            <div class="news-title-area">
+        <section class="news-hero">
+            <div>
                 <div class="page-eyebrow">
                     NEWS INTELLIGENCE
                 </div>
 
                 <h1>
-                    Intelijen Berita
+                    News Intelligence
                 </h1>
 
                 <p>
-                    Berita ekonomi, logistik, perdagangan, shipping, dan rantai pasok berdasarkan negara yang dipilih.
+                    Pantau berita ekonomi, logistik, perdagangan, shipping, dan geopolitik untuk membaca potensi risiko rantai pasok global.
                 </p>
             </div>
 
-            <div class="news-country-mini-card">
-                <div class="news-country-flag">
-                    @if ($selectedCountry?->flag_url)
-                        <img
-                            src="{{ $selectedCountry->flag_url }}"
-                            alt="Bendera {{ $selectedCountry->name }}"
-                        >
-                    @else
-                        <div class="news-flag-fallback">
-                            <i class="bi bi-flag"></i>
-                        </div>
-                    @endif
-                </div>
+            <div class="news-country-card">
+                @if ($selectedCountry->flag_url)
+                    <img
+                        src="{{ $selectedCountry->flag_url }}"
+                        alt="Bendera {{ $selectedCountry->name }}"
+                    >
+                @else
+                    <div class="news-flag-placeholder">
+                        <i class="bi bi-flag"></i>
+                    </div>
+                @endif
 
                 <div>
-                    <span>
-                        Negara Dipantau
-                    </span>
+                    <span>Negara Dipantau</span>
 
                     <strong>
-                        {{ $selectedCountry?->name ?? '-' }}
+                        {{ $selectedCountry->name }}
                     </strong>
 
                     <small>
-                        {{ $selectedCountry?->iso3_code ?? '-' }}
-                        •
-                        {{ $selectedCountry?->region ?? '-' }}
+                        {{ $selectedCountry->iso3_code }}
                     </small>
                 </div>
             </div>
@@ -66,22 +49,49 @@
             <form
                 method="GET"
                 action="{{ route('news.index') }}"
-                class="news-filter"
+                class="news-filter-form"
             >
-                <select
-                    name="country"
-                    id="country"
-                    class="form-select"
-                >
-                    @foreach ($countries as $country)
-                        <option
-                            value="{{ $country->iso3_code }}"
-                            @selected($selectedCountry && $selectedCountry->id === $country->id)
-                        >
-                            {{ $country->name }} ({{ $country->iso3_code }})
-                        </option>
-                    @endforeach
-                </select>
+                <div class="news-field">
+                    <label for="country">
+                        Pilih Negara
+                    </label>
+
+                    <select
+                        name="country"
+                        id="country"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            <option
+                                value="{{ $country->iso3_code }}"
+                                @selected($selectedCountry->id === $country->id)
+                            >
+                                {{ $country->name }} ({{ $country->iso3_code }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="news-field">
+                    <label for="category">
+                        Kategori
+                    </label>
+
+                    <select
+                        name="category"
+                        id="category"
+                        class="form-select"
+                    >
+                        @foreach ($categories as $key => $label)
+                            <option
+                                value="{{ $key }}"
+                                @selected($selectedCategory === $key)
+                            >
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <button
                     type="submit"
@@ -101,108 +111,160 @@
             </form>
         </section>
 
-        @if ($apiError)
+        @if (!empty($apiError))
             <div class="news-alert">
                 <i class="bi bi-info-circle"></i>
 
                 <span>
-                    Data berita belum dapat diperbarui. Sistem menampilkan data tersimpan.
+                    {{ $apiError }}
                 </span>
             </div>
         @endif
 
         <section class="news-summary-grid">
-            <article class="news-stat-card">
-                <span>Total Artikel</span>
+            <article class="news-summary-card">
+                <span>Total Berita</span>
 
                 <strong>
-                    {{ number_format($summary['total_articles'] ?? 0, 0, ',', '.') }}
+                    {{ $summary['total'] ?? 0 }}
                 </strong>
 
                 <small>
-                    Artikel
+                    Berita terbaru yang dianalisis
                 </small>
             </article>
 
-            <article class="news-stat-card">
-                <span>Risk Rata-rata</span>
+            <article class="news-summary-card">
+                <span>Positive</span>
 
                 <strong>
-                    {{ number_format($summary['average_risk_score'] ?? 0, 2, ',', '.') }}
+                    {{ $summary['positive'] ?? 0 }}
                 </strong>
 
                 <small>
-                    Skor risiko
+                    Sentimen positif
                 </small>
             </article>
 
-            <article class="news-stat-card">
-                <span>Positif</span>
+            <article class="news-summary-card">
+                <span>Neutral</span>
 
                 <strong>
-                    {{ number_format($summary['positive_count'] ?? 0, 0, ',', '.') }}
+                    {{ $summary['neutral'] ?? 0 }}
                 </strong>
 
                 <small>
-                    Sentimen
+                    Sentimen netral
                 </small>
             </article>
 
-            <article class="news-stat-card">
-                <span>Netral</span>
+            <article class="news-summary-card">
+                <span>Negative</span>
 
                 <strong>
-                    {{ number_format($summary['neutral_count'] ?? 0, 0, ',', '.') }}
+                    {{ $summary['negative'] ?? 0 }}
                 </strong>
 
                 <small>
-                    Sentimen
+                    Sentimen negatif
                 </small>
             </article>
 
-            <article class="news-stat-card">
-                <span>Negatif</span>
+            <article class="news-summary-card">
+                <span>Average News Risk</span>
 
                 <strong>
-                    {{ number_format($summary['negative_count'] ?? 0, 0, ',', '.') }}
+                    {{ number_format($summary['average_risk'] ?? 0, 2, ',', '.') }}
                 </strong>
 
                 <small>
-                    Sentimen
-                </small>
-            </article>
-
-            <article class="news-stat-card">
-                <span>Status</span>
-
-                <strong>
-                    <span class="badge {{ $riskBadgeClass }} news-status-badge">
-                        {{ $summary['risk_label'] ?? 'Risiko Rendah' }}
-                    </span>
-                </strong>
-
-                <small>
-                    Rata-rata
+                    {{ $summary['average_risk_label'] ?? 'Low Risk' }}
                 </small>
             </article>
         </section>
 
-        <section class="news-main-grid">
-            <article class="news-card news-chart-card">
-                <div class="news-card-heading">
-                    <div>
-                        <span>
-                            Komposisi Sentimen
-                        </span>
+        <section class="news-insight-grid">
+            <article class="news-risk-card">
+                <div class="news-heading">
+                    <span>News Risk Insight</span>
 
-                        <h2>
-                            Grafik Sentimen
-                        </h2>
+                    <h2>
+                        Dampak Berita terhadap Supply Chain
+                    </h2>
+                </div>
+
+                <div class="news-risk-row">
+                    <div class="news-risk-score {{ $summary['average_risk_class'] ?? 'risk-low' }}">
+                        {{ number_format($summary['average_risk'] ?? 0, 0, ',', '.') }}
                     </div>
 
-                    <small>
-                        Lexicon Based
-                    </small>
+                    <div>
+                        <strong>
+                            {{ $summary['average_risk_label'] ?? 'Low Risk' }}
+                        </strong>
+
+                        <p>
+                            {{ $summary['recommendation'] ?? 'Belum ada rekomendasi.' }}
+                        </p>
+                    </div>
+                </div>
+            </article>
+
+            <article class="news-dominant-card">
+                <div class="news-heading">
+                    <span>Dominant Sentiment</span>
+
+                    <h2>
+                        Sentimen Dominan
+                    </h2>
+                </div>
+
+                <div class="sentiment-badge {{ $summary['dominant_sentiment_class'] ?? 'sentiment-neutral' }}">
+                    {{ $summary['dominant_sentiment_label'] ?? 'Neutral' }}
+                </div>
+
+                <p>
+                    Ringkasan ini dihitung dari berita yang dianalisis menggunakan lexicon positive dan negative words.
+                </p>
+            </article>
+        </section>
+
+        <section class="news-category-card">
+            <div class="news-heading">
+                <span>Kategori Berita</span>
+
+                <h2>
+                    Distribusi Topik
+                </h2>
+            </div>
+
+            <div class="news-category-grid">
+                @foreach ($categoryCounts as $key => $item)
+                    <article class="news-category-item">
+                        <span>
+                            {{ $item['label'] }}
+                        </span>
+
+                        <strong>
+                            {{ $item['count'] }}
+                        </strong>
+
+                        <small>
+                            Berita
+                        </small>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+
+        <section class="news-chart-grid">
+            <article class="news-panel">
+                <div class="news-heading">
+                    <span>Sentiment Chart</span>
+
+                    <h2>
+                        Positive, Neutral, Negative
+                    </h2>
                 </div>
 
                 <div class="news-chart-box">
@@ -210,182 +272,91 @@
                 </div>
             </article>
 
-            <article class="news-card news-method-card">
-                <div class="news-card-heading">
-                    <div>
-                        <span>
-                            Metode Analisis
-                        </span>
+            <article class="news-panel">
+                <div class="news-heading">
+                    <span>Category Chart</span>
 
-                        <h2>
-                            Lexicon Based Sentiment
-                        </h2>
-                    </div>
+                    <h2>
+                        Kategori Berita
+                    </h2>
                 </div>
 
-                <div class="news-method-grid">
-                    <div>
-                        <span>Positive Words</span>
-
-                        <strong>
-                            Growth, stable, recovery
-                        </strong>
-                    </div>
-
-                    <div>
-                        <span>Negative Words</span>
-
-                        <strong>
-                            Crisis, war, delay
-                        </strong>
-                    </div>
-
-                    <div>
-                        <span>Output</span>
-
-                        <strong>
-                            Positif / Netral / Negatif
-                        </strong>
-                    </div>
-
-                    <div>
-                        <span>Risk</span>
-
-                        <strong>
-                            Skor berita
-                        </strong>
-                    </div>
+                <div class="news-chart-box">
+                    <canvas id="newsCategoryChart"></canvas>
                 </div>
             </article>
         </section>
 
-        <section class="news-card news-list-panel">
-            <div class="news-card-heading">
-                <div>
-                    <span>
-                        Artikel Berita
-                    </span>
+        <section class="news-panel">
+            <div class="news-heading">
+                <span>Daftar Berita</span>
 
-                    <h2>
-                        Berita Terkini
-                    </h2>
-                </div>
-
-                <small>
-                    Logistics • Trade • Shipping • Economy
-                </small>
+                <h2>
+                    Berita Terkait Supply Chain
+                </h2>
             </div>
 
             <div class="news-list">
-                @forelse ($newsItems as $news)
-                    @php
-                        $sentimentBadge = match ($news['sentiment'] ?? null) {
-                            'positive' => 'news-badge-positive',
-                            'negative' => 'news-badge-negative',
-                            default => 'news-badge-neutral',
-                        };
-
-                        $imageUrl = $news['image_url'] ?? null;
-                    @endphp
-
+                @forelse ($articles as $article)
                     <article class="news-item">
-                        <div class="news-thumb">
-                            @if ($imageUrl)
+                        <div class="news-image">
+                            @if (!empty($article['image_url']))
                                 <img
-                                    src="{{ $imageUrl }}"
-                                    alt="{{ $news['title'] ?? 'Gambar berita' }}"
-                                    loading="lazy"
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                    src="{{ $article['image_url'] }}"
+                                    alt="{{ $article['title'] }}"
                                 >
-
-                                <div
-                                    class="news-thumb-fallback"
-                                    style="display: none;"
-                                >
-                                    <i class="bi bi-newspaper"></i>
-                                </div>
                             @else
-                                <div class="news-thumb-fallback">
+                                <div class="news-image-placeholder">
                                     <i class="bi bi-newspaper"></i>
                                 </div>
                             @endif
                         </div>
 
-                        <div class="news-item-body">
-                            <div class="news-meta">
-                                <span>
-                                    <i class="bi bi-building me-1"></i>
-                                    {{ $news['source_name'] ?? 'Sumber tidak tersedia' }}
+                        <div class="news-content">
+                            <div class="news-meta-row">
+                                <span class="category-pill">
+                                    {{ $article['category_label'] }}
                                 </span>
 
-                                <span>
-                                    <i class="bi bi-calendar-event me-1"></i>
-                                    {{ $news['published_at'] ?? '-' }}
+                                <span class="sentiment-pill {{ $article['sentiment_class'] }}">
+                                    {{ $article['sentiment_label'] }}
+                                </span>
+
+                                <span class="risk-pill {{ $article['risk_class'] }}">
+                                    {{ $article['risk_label'] }}
                                 </span>
                             </div>
 
                             <h3>
-                                {{ $news['title'] ?? 'Judul berita tidak tersedia' }}
+                                {{ $article['title'] }}
                             </h3>
 
-                            @if (!empty($news['description']))
-                                <p>
-                                    {{ \Illuminate\Support\Str::limit($news['description'], 120) }}
-                                </p>
-                            @endif
+                            <p>
+                                {{ $article['description'] }}
+                            </p>
 
-                            <div class="news-score-row">
+                            <div class="news-footer">
                                 <span>
-                                    Positif:
-                                    {{ number_format($news['positive_score'] ?? 0, 0, ',', '.') }}
+                                    {{ $article['source_name'] }}
+                                    •
+                                    {{ $article['published_at'] ?? 'Waktu tidak tersedia' }}
                                 </span>
 
-                                <span>
-                                    Netral:
-                                    {{ number_format($news['neutral_score'] ?? 0, 0, ',', '.') }}
-                                </span>
-
-                                <span>
-                                    Negatif:
-                                    {{ number_format($news['negative_score'] ?? 0, 0, ',', '.') }}
-                                </span>
+                                @if (!empty($article['url']))
+                                    <a
+                                        href="{{ $article['url'] }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        Baca Berita
+                                    </a>
+                                @endif
                             </div>
-                        </div>
-
-                        <div class="news-item-action">
-                            <span class="news-sentiment {{ $sentimentBadge }}">
-                                {{ $news['sentiment_label'] ?? 'Netral' }}
-                            </span>
-
-                            <div class="news-risk">
-                                <span>
-                                    Risk
-                                </span>
-
-                                <strong>
-                                    {{ number_format((float) ($news['risk_score'] ?? 0), 2, ',', '.') }}
-                                </strong>
-                            </div>
-
-                            @if (!empty($news['url']))
-                                <a
-                                    href="{{ $news['url'] }}"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="btn btn-sm btn-outline-primary"
-                                >
-                                    Buka
-                                </a>
-                            @endif
                         </div>
                     </article>
                 @empty
                     <div class="news-empty">
-                        <i class="bi bi-info-circle"></i>
-
-                        <span>
-                            Berita belum tersedia. Klik tombol <strong>Perbarui</strong>.
-                        </span>
+                        Berita belum tersedia untuk negara dan kategori yang dipilih.
                     </div>
                 @endforelse
             </div>
@@ -397,260 +368,302 @@
     <style>
         .news-page {
             width: 100%;
-            max-width: 1180px;
+            max-width: 1100px;
             margin: 0 auto;
-            padding: 14px 18px 24px;
+            padding: 10px 12px 22px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            overflow-x: hidden;
         }
 
-        .news-top-grid {
+        .news-hero {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 300px;
-            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) 250px;
+            gap: 10px;
             align-items: end;
         }
 
-        .news-title-area {
-            padding-left: 6px;
-        }
-
-        .news-title-area h1 {
+        .news-hero h1 {
             margin: 0 0 4px;
             color: #111827;
-            font-size: 1.65rem;
-            font-weight: 900;
-            line-height: 1.1;
+            font-size: 1.45rem;
+            font-weight: 950;
         }
 
-        .news-title-area p {
+        .news-hero p {
             margin: 0;
             color: #7c8aa5;
-            font-size: 0.84rem;
-            line-height: 1.45;
-            max-width: 760px;
+            font-size: 0.8rem;
+            line-height: 1.4;
         }
 
-        .news-country-mini-card,
+        .news-country-card,
         .news-filter-card,
-        .news-card,
-        .news-stat-card {
+        .news-summary-card,
+        .news-risk-card,
+        .news-dominant-card,
+        .news-category-card,
+        .news-panel {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
-            border-radius: 16px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+            min-width: 0;
+            overflow: hidden;
         }
 
-        .news-country-mini-card {
+        .news-country-card {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 12px;
-            min-height: 76px;
+            min-height: 66px;
+            padding: 9px 11px;
         }
 
-        .news-country-flag {
-            width: 42px;
-            height: 28px;
+        .news-country-card img,
+        .news-flag-placeholder {
+            width: 40px;
+            height: 27px;
             border-radius: 8px;
-            overflow: hidden;
-            background: #e2e8f0;
-            flex: 0 0 auto;
-        }
-
-        .news-country-flag img {
-            width: 100%;
-            height: 100%;
             object-fit: cover;
+            background: #e2e8f0;
         }
 
-        .news-flag-fallback {
-            width: 100%;
-            height: 100%;
+        .news-flag-placeholder {
             display: grid;
             place-items: center;
             color: #64748b;
         }
 
-        .news-country-mini-card span,
-        .news-card-heading span,
-        .news-stat-card span,
-        .news-method-grid span {
+        .news-country-card span,
+        .news-heading span,
+        .news-field label,
+        .news-summary-card span,
+        .news-category-item span {
             display: block;
             margin-bottom: 3px;
             color: #7c8aa5;
-            font-size: 0.68rem;
-            font-weight: 800;
+            font-size: 0.66rem;
+            font-weight: 850;
             text-transform: uppercase;
             letter-spacing: 0.035em;
         }
 
-        .news-country-mini-card strong {
+        .news-country-card strong {
             display: block;
             color: #111827;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 900;
-            line-height: 1.2;
         }
 
-        .news-country-mini-card small {
-            display: block;
+        .news-country-card small {
             color: #7c8aa5;
-            font-size: 0.72rem;
-            line-height: 1.3;
+            font-size: 0.7rem;
         }
 
-        .news-filter-card {
-            width: fit-content;
-            max-width: 100%;
-            padding: 10px 12px;
+        .news-filter-card,
+        .news-risk-card,
+        .news-dominant-card,
+        .news-category-card,
+        .news-panel {
+            padding: 12px;
         }
 
-        .news-filter {
+        .news-filter-form {
             display: grid;
-            grid-template-columns: 520px 105px 105px;
+            grid-template-columns: minmax(0, 1fr) 220px 95px 95px;
             gap: 8px;
-            align-items: center;
+            align-items: end;
         }
 
-        .news-filter .form-select,
-        .news-filter .btn {
-            height: 38px;
+        .news-filter-form .form-select,
+        .news-filter-form .btn {
+            height: 36px;
             border-radius: 10px;
-            font-size: 0.82rem;
+            font-size: 0.79rem;
             font-weight: 800;
-        }
-
-        .news-filter .form-select {
-            max-width: 520px;
         }
 
         .news-alert {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 12px;
-            border-radius: 14px;
+            padding: 9px 11px;
+            border-radius: 13px;
             background: #fffbeb;
             color: #92400e;
             border: 1px solid rgba(245, 158, 11, 0.22);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 750;
         }
 
         .news-summary-grid {
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 10px;
         }
 
-        .news-stat-card {
-            min-width: 0;
-            padding: 12px 14px;
+        .news-summary-card {
+            padding: 11px;
         }
 
-        .news-stat-card strong {
+        .news-summary-card strong {
             display: block;
             color: #111827;
-            font-size: 1.12rem;
-            font-weight: 900;
-            line-height: 1.2;
-            word-break: break-word;
+            font-size: 1rem;
+            font-weight: 950;
         }
 
-        .news-stat-card small {
-            display: block;
-            margin-top: 4px;
+        .news-summary-card small {
             color: #7c8aa5;
             font-size: 0.7rem;
-            line-height: 1.3;
         }
 
-        .badge-risk-low {
-            background: #eef6ff !important;
-            color: #1d4ed8 !important;
+        .news-insight-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(230px, 0.6fr);
+            gap: 10px;
+        }
+
+        .news-heading {
+            margin-bottom: 9px;
+        }
+
+        .news-heading h2 {
+            margin: 0;
+            color: #111827;
+            font-size: 0.95rem;
+            font-weight: 950;
+        }
+
+        .news-risk-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .news-risk-score {
+            width: 70px;
+            height: 70px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            font-size: 1.2rem;
+            font-weight: 950;
+            flex: 0 0 auto;
+        }
+
+        .news-risk-row strong,
+        .news-dominant-card strong {
+            color: #111827;
+            font-size: 0.9rem;
+            font-weight: 950;
+        }
+
+        .news-risk-row p,
+        .news-dominant-card p {
+            margin: 4px 0 0;
+            color: #64748b;
+            font-size: 0.76rem;
+            line-height: 1.45;
+        }
+
+        .sentiment-badge,
+        .sentiment-pill,
+        .risk-pill,
+        .category-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 8px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 850;
+            white-space: nowrap;
+        }
+
+        .sentiment-positive {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid rgba(34, 197, 94, 0.22);
+        }
+
+        .sentiment-neutral {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid rgba(148, 163, 184, 0.26);
+        }
+
+        .sentiment-negative {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid rgba(239, 68, 68, 0.28);
+        }
+
+        .risk-low {
+            background: #eef6ff;
+            color: #1d4ed8;
             border: 1px solid rgba(37, 99, 235, 0.18);
         }
 
-        .badge-risk-medium {
-            background: #cffafe !important;
-            color: #0f172a !important;
+        .risk-medium {
+            background: #cffafe;
+            color: #0f172a;
             border: 1px solid rgba(6, 182, 212, 0.24);
         }
 
-        .news-status-badge {
-            display: inline-flex;
-            justify-content: center;
-            min-width: 135px;
-            padding: 5px 8px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 850;
-            white-space: nowrap;
+        .risk-high {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
-        .news-main-grid {
+        .risk-critical {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid rgba(239, 68, 68, 0.28);
+        }
+
+        .category-pill {
+            background: #eef6ff;
+            color: #1d4ed8;
+            border: 1px solid rgba(37, 99, 235, 0.16);
+        }
+
+        .news-category-grid {
             display: grid;
-            grid-template-columns: minmax(280px, 0.75fr) minmax(420px, 1.25fr);
-            gap: 10px;
-        }
-
-        .news-card {
-            padding: 14px;
-        }
-
-        .news-card-heading {
-            display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .news-card-heading h2 {
-            margin: 0;
-            color: #111827;
-            font-size: 0.98rem;
-            font-weight: 900;
-            line-height: 1.25;
-        }
-
-        .news-card-heading small {
-            color: #7c8aa5;
-            font-size: 0.72rem;
-            font-weight: 750;
-            white-space: nowrap;
-        }
-
-        .news-chart-box {
-            width: 100%;
-            height: 155px;
-        }
-
-        .news-method-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 8px;
         }
 
-        .news-method-grid > div {
+        .news-category-item {
             padding: 9px;
             border-radius: 12px;
             background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.14);
+            border: 1px solid rgba(148, 163, 184, 0.16);
         }
 
-        .news-method-grid strong {
+        .news-category-item strong {
             display: block;
             color: #111827;
-            font-size: 0.76rem;
-            font-weight: 850;
-            line-height: 1.35;
+            font-size: 0.95rem;
+            font-weight: 950;
         }
 
-        .news-list-panel {
-            padding: 14px;
+        .news-category-item small {
+            color: #7c8aa5;
+            font-size: 0.7rem;
+        }
+
+        .news-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .news-chart-box {
+            height: 170px;
         }
 
         .news-list {
@@ -661,223 +674,146 @@
 
         .news-item {
             display: grid;
-            grid-template-columns: 82px minmax(0, 1fr) 90px;
+            grid-template-columns: 120px minmax(0, 1fr);
             gap: 10px;
-            align-items: stretch;
             padding: 9px;
-            border-radius: 14px;
+            border-radius: 13px;
+            background: #f8fafc;
             border: 1px solid rgba(148, 163, 184, 0.16);
-            background: #ffffff;
-        }
-
-        .news-thumb {
-            width: 82px;
-            height: 64px;
-            border-radius: 10px;
-            overflow: hidden;
-            background: #f1f5f9;
-        }
-
-        .news-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        .news-thumb-fallback {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #64748b;
-            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-            font-size: 1.2rem;
-        }
-
-        .news-item-body {
             min-width: 0;
         }
 
-        .news-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 4px;
-            color: #7c8aa5;
-            font-size: 0.66rem;
+        .news-image {
+            width: 120px;
+            height: 86px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #e2e8f0;
         }
 
-        .news-item-body h3 {
-            margin: 0 0 4px;
-            color: #111827;
-            font-size: 0.84rem;
-            font-weight: 900;
-            line-height: 1.3;
+        .news-image img,
+        .news-image-placeholder {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
-        .news-item-body p {
-            margin: 0;
+        .news-image-placeholder {
+            display: grid;
+            place-items: center;
             color: #64748b;
-            font-size: 0.72rem;
-            line-height: 1.38;
+            font-size: 1.3rem;
         }
 
-        .news-score-row {
+        .news-content {
+            min-width: 0;
+        }
+
+        .news-meta-row {
             display: flex;
             flex-wrap: wrap;
             gap: 5px;
-            margin-top: 6px;
+            margin-bottom: 5px;
         }
 
-        .news-score-row span {
-            padding: 3px 6px;
-            border-radius: 999px;
-            background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.16);
+        .news-content h3 {
+            margin: 0 0 4px;
+            color: #111827;
+            font-size: 0.92rem;
+            line-height: 1.3;
+            font-weight: 950;
+        }
+
+        .news-content p {
+            margin: 0 0 6px;
             color: #64748b;
-            font-size: 0.64rem;
+            font-size: 0.76rem;
+            line-height: 1.4;
+        }
+
+        .news-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            color: #7c8aa5;
+            font-size: 0.72rem;
             font-weight: 750;
         }
 
-        .news-item-action {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: flex-start;
-            gap: 6px;
-            text-align: right;
-        }
-
-        .news-sentiment {
-            min-width: 70px;
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            padding: 5px 7px;
-            border-radius: 999px;
-            font-size: 0.66rem;
-            font-weight: 850;
-        }
-
-        .news-badge-positive {
-            background: #ecfdf5;
-            color: #047857;
-            border: 1px solid rgba(16, 185, 129, 0.18);
-        }
-
-        .news-badge-neutral {
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid rgba(100, 116, 139, 0.18);
-        }
-
-        .news-badge-negative {
-            background: #fef2f2;
-            color: #b91c1c;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .news-risk span {
-            display: block;
-            color: #7c8aa5;
-            font-size: 0.62rem;
-            font-weight: 800;
-        }
-
-        .news-risk strong {
-            display: block;
-            color: #111827;
-            font-size: 0.84rem;
+        .news-footer a {
+            color: #2563eb;
+            text-decoration: none;
             font-weight: 900;
-            line-height: 1.2;
-        }
-
-        .news-item-action .btn {
-            padding: 3px 8px;
-            border-radius: 8px;
-            font-size: 0.66rem;
-            font-weight: 800;
+            white-space: nowrap;
         }
 
         .news-empty {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px;
-            border-radius: 14px;
-            background: #f8fafc;
-            color: #64748b;
-            border: 1px dashed rgba(148, 163, 184, 0.45);
+            padding: 18px;
+            text-align: center;
+            color: #7c8aa5;
             font-size: 0.82rem;
         }
 
-        @media (max-width: 1280px) {
-            .news-summary-grid {
+        @media (max-width: 1100px) {
+            .news-summary-grid,
+            .news-category-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
-            .news-main-grid {
+            .news-insight-grid,
+            .news-chart-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        @media (max-width: 980px) {
-            .news-top-grid {
+        @media (max-width: 900px) {
+            .news-hero,
+            .news-filter-form {
                 grid-template-columns: 1fr;
             }
 
-            .news-filter-card {
+            .news-filter-form .btn {
                 width: 100%;
             }
 
-            .news-filter {
-                grid-template-columns: 1fr;
-            }
-
-            .news-filter .form-select {
-                max-width: 100%;
+            .news-summary-grid,
+            .news-category-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
             .news-item {
                 grid-template-columns: 1fr;
             }
 
-            .news-thumb {
+            .news-image {
                 width: 100%;
-                height: 145px;
+                height: 160px;
             }
 
-            .news-item-action {
+            .news-footer {
+                flex-direction: column;
                 align-items: flex-start;
-                text-align: left;
             }
         }
 
-        @media (max-width: 720px) {
+        @media (max-width: 640px) {
             .news-page {
-                padding: 12px;
+                padding: 10px;
+            }
+
+            .news-hero h1 {
+                font-size: 1.25rem;
             }
 
             .news-summary-grid,
-            .news-method-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .news-title-area {
-                padding-left: 0;
-            }
-
-            .news-title-area h1 {
-                font-size: 1.45rem;
-            }
-        }
-
-        @media (max-width: 520px) {
-            .news-summary-grid,
-            .news-method-grid {
+            .news-category-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .news-risk-row {
+                flex-direction: column;
+                align-items: flex-start;
             }
         }
     </style>
@@ -906,65 +842,72 @@
                 chartData = {};
             }
 
-            var canvas = document.getElementById('newsSentimentChart');
+            function createBarChart(canvasId, labels, values, label) {
+                var canvas = document.getElementById(canvasId);
 
-            if (!canvas) {
-                return;
-            }
+                if (!canvas) {
+                    return;
+                }
 
-            new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: chartData.sentiment ? chartData.sentiment.labels : [],
-                    datasets: [
-                        {
-                            label: 'Jumlah Artikel',
-                            data: chartData.sentiment ? chartData.sentiment.values : [],
-                            borderWidth: 1,
-                            borderRadius: 6,
-                            maxBarThickness: 28
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: {
-                        padding: 0
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label,
+                                data: values,
+                                borderWidth: 1,
+                                borderRadius: 8
+                            }
+                        ]
                     },
-                    scales: {
-                        x: {
-                            ticks: {
-                                font: {
-                                    size: 9
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                },
+                                grid: {
+                                    display: false
                                 }
                             },
-                            grid: {
-                                display: false
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0,
+                                    font: {
+                                        size: 9
+                                    }
+                                }
                             }
                         },
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                font: {
-                                    size: 9
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                boxWidth: 10,
-                                font: {
-                                    size: 10
-                                }
+                        plugins: {
+                            legend: {
+                                display: false
                             }
                         }
                     }
-                }
-            });
+                });
+            }
+
+            createBarChart(
+                'newsSentimentChart',
+                chartData.sentiment?.labels || [],
+                chartData.sentiment?.values || [],
+                'Sentiment'
+            );
+
+            createBarChart(
+                'newsCategoryChart',
+                chartData.category?.labels || [],
+                chartData.category?.values || [],
+                'Kategori Berita'
+            );
         });
     </script>
 @endpush

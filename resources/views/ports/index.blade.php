@@ -4,6 +4,34 @@
 
 @section('content')
     @php
+        $routePortOptions = collect($routePortOptions ?? []);
+
+        $routeEstimatorData = $routeEstimator ?? [
+            'available' => false,
+            'message' => 'Pilih dua pelabuhan berbeda untuk menghitung estimasi rute.',
+            'origin_port' => null,
+            'destination_port' => null,
+            'distance' => [
+                'straight_km' => 0,
+                'sea_km' => 0,
+                'nautical_miles' => 0,
+            ],
+            'duration' => [
+                'speed_knots' => 18,
+                'hours' => 0,
+                'days' => 0,
+                'display' => 'Belum tersedia',
+            ],
+            'risk' => [
+                'score' => 0,
+                'level' => 'low',
+                'label' => 'Belum dihitung',
+                'recommendation' => 'Pilih port asal dan port tujuan terlebih dahulu.',
+            ],
+            'route_line' => [],
+            'map_center' => null,
+        ];
+
         $averageRisk = $summary['average_risk_score'] ?? 0;
 
         $riskBadgeClass = match (true) {
@@ -13,12 +41,26 @@
             default => 'risk-low',
         };
 
+        $selectedPortRiskScore = (float) ($selectedPort['risk_score'] ?? 0);
+
         $selectedPortRiskClass = match (true) {
-            ($selectedPort['risk_score'] ?? 0) >= 75 => 'risk-critical',
-            ($selectedPort['risk_score'] ?? 0) >= 50 => 'risk-high',
-            ($selectedPort['risk_score'] ?? 0) >= 25 => 'risk-medium',
+            $selectedPortRiskScore >= 75 => 'risk-critical',
+            $selectedPortRiskScore >= 50 => 'risk-high',
+            $selectedPortRiskScore >= 25 => 'risk-medium',
             default => 'risk-low',
         };
+
+        $routeRiskScore = (float) ($routeEstimatorData['risk']['score'] ?? 0);
+
+        $routeRiskClass = match (true) {
+            $routeRiskScore >= 75 => 'risk-critical',
+            $routeRiskScore >= 50 => 'risk-high',
+            $routeRiskScore >= 25 => 'risk-medium',
+            default => 'risk-low',
+        };
+
+        $routeOriginValue = request('origin_port', $routeEstimatorData['origin_port']['id'] ?? '');
+        $routeDestinationValue = request('destination_port', $routeEstimatorData['destination_port']['id'] ?? '');
 
         $portMapData = $ports
             ->map(function ($port) {
@@ -35,18 +77,27 @@
                     'congestion_score' => $port['congestion_score'] ?? 0,
                     'weather_exposure_score' => $port['weather_exposure_score'] ?? 0,
                     'source' => $port['source'] ?? '-',
-                    'description' => $port['description'] ?? '',
                 ];
             })
             ->values()
             ->all();
+
+        $routeMapData = [
+            'available' => $routeEstimatorData['available'] ?? false,
+            'origin_port' => $routeEstimatorData['origin_port'] ?? null,
+            'destination_port' => $routeEstimatorData['destination_port'] ?? null,
+            'route_line' => $routeEstimatorData['route_line'] ?? [],
+            'risk' => $routeEstimatorData['risk'] ?? [],
+            'distance' => $routeEstimatorData['distance'] ?? [],
+            'duration' => $routeEstimatorData['duration'] ?? [],
+        ];
 
         $selectedLocation = [
             'latitude' => $defaultLatitude ?? -6.1045,
             'longitude' => $defaultLongitude ?? 106.8866,
         ];
 
-        $tablePorts = $ports->take(60);
+        $tablePorts = $ports->take(25);
     @endphp
 
     <div class="ports-page">
@@ -61,7 +112,7 @@
                 </h1>
 
                 <p>
-                    Pantau lokasi pelabuhan, koordinat, peta interaktif, dan risiko logistik negara terpilih.
+                    Pantau lokasi pelabuhan, risiko logistik, dan estimasi rute antar pelabuhan.
                 </p>
             </div>
 
@@ -171,7 +222,7 @@
                 </strong>
 
                 <small>
-                    Data negara dipilih
+                    Negara dipilih
                 </small>
             </article>
 
@@ -183,7 +234,7 @@
                 </strong>
 
                 <small>
-                    Skor risiko pelabuhan
+                    Skor pelabuhan
                 </small>
             </article>
 
@@ -192,7 +243,7 @@
 
                 <strong>
                     <b class="{{ $riskBadgeClass }}">
-                        {{ $averageRisk >= 75 ? 'Risiko Kritis' : ($averageRisk >= 50 ? 'Risiko Tinggi' : ($averageRisk >= 25 ? 'Risiko Sedang' : 'Risiko Rendah')) }}
+                        {{ $averageRisk >= 75 ? 'Kritis' : ($averageRisk >= 50 ? 'Tinggi' : ($averageRisk >= 25 ? 'Sedang' : 'Rendah')) }}
                     </b>
                 </strong>
 
@@ -212,30 +263,6 @@
                     Skor {{ number_format($summary['highest_risk_score'] ?? 0, 2, ',', '.') }}
                 </small>
             </article>
-
-            <article class="ports-stat-card">
-                <span>Pelabuhan Dipilih</span>
-
-                <strong>
-                    {{ $selectedPort['code'] ?? '-' }}
-                </strong>
-
-                <small>
-                    {{ $selectedPort['name'] ?? 'Belum tersedia' }}
-                </small>
-            </article>
-
-            <article class="ports-stat-card">
-                <span>Sumber Data</span>
-
-                <strong>
-                    Dataset
-                </strong>
-
-                <small>
-                    World Port Index
-                </small>
-            </article>
         </section>
 
         <section class="ports-main-grid">
@@ -247,10 +274,6 @@
                         {{ $selectedPort['name'] ?? 'Belum tersedia' }}
                     </h2>
                 </div>
-
-                <p>
-                    {{ $selectedPort['description'] ?? 'Data pelabuhan belum tersedia untuk negara ini.' }}
-                </p>
 
                 <div class="ports-selected-grid">
                     <div>
@@ -302,7 +325,7 @@
                     </div>
 
                     <div>
-                        <span>Weather Exposure</span>
+                        <span>Weather</span>
 
                         <strong>
                             {{ number_format($selectedPort['weather_exposure_score'] ?? 0, 2, ',', '.') }}
@@ -323,130 +346,305 @@
 
             <article class="ports-card ports-map-card">
                 <div class="ports-card-heading">
-                    <span>Peta Interaktif</span>
+                    <span>Peta Daftar Pelabuhan</span>
 
                     <h2>
-                        Lokasi Pelabuhan
+                        Lokasi Pelabuhan {{ $selectedCountry?->name ?? '' }}
                     </h2>
                 </div>
 
-                <div id="portsMap"></div>
+                <div id="portsListMap"></div>
             </article>
         </section>
 
-        <section class="ports-card">
-            <div class="ports-card-heading">
-                <span>Grafik Risiko</span>
+        <section class="ports-data-grid">
+            <article class="ports-card">
+                <div class="ports-card-heading">
+                    <span>Grafik Risiko</span>
 
-                <h2>
-                    Top Risiko Pelabuhan
-                </h2>
-            </div>
+                    <h2>
+                        Top Risiko Pelabuhan
+                    </h2>
+                </div>
 
-            <div class="ports-chart-box">
-                <canvas id="portRiskChart"></canvas>
-            </div>
+                <div class="ports-chart-box">
+                    <canvas id="portRiskChart"></canvas>
+                </div>
+            </article>
+
+            <article class="ports-card">
+                <div class="ports-card-heading ports-table-heading">
+                    <div>
+                        <span>Daftar Pelabuhan</span>
+
+                        <h2>
+                            Pelabuhan Utama
+                        </h2>
+                    </div>
+
+                    <small>
+                        {{ $tablePorts->count() }} / {{ $ports->count() }} data
+                    </small>
+                </div>
+
+                <div class="table-responsive ports-table-wrapper">
+                    <table class="table align-middle mb-0 ports-table">
+                        <thead>
+                            <tr>
+                                <th>Pelabuhan</th>
+                                <th>Kota</th>
+                                <th>Risk</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @forelse ($tablePorts as $port)
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            {{ $port['name'] ?? '-' }}
+                                        </strong>
+
+                                        <br>
+
+                                        <small>
+                                            {{ $port['code'] ?? '-' }}
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        {{ $port['city'] ?? '-' }}
+                                    </td>
+
+                                    <td>
+                                        <strong>
+                                            {{ number_format($port['risk_score'] ?? 0, 2, ',', '.') }}
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{{ route('ports.index', ['country' => $selectedCountry?->iso3_code, 'port' => $port['code'] ?? null]) }}"
+                                            class="btn btn-sm btn-outline-primary"
+                                        >
+                                            Lihat
+                                        </a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td
+                                        colspan="4"
+                                        class="text-center text-muted py-4"
+                                    >
+                                        Data pelabuhan belum tersedia.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
         </section>
 
-        <section class="ports-card">
+        <section class="ports-card ports-route-card">
             <div class="ports-card-heading">
-                <span>Daftar Pelabuhan</span>
+                <span>Port Route Estimator</span>
 
                 <h2>
-                    Pelabuhan Utama
+                    Estimasi Rute Antar Pelabuhan
                 </h2>
-            </div>
 
-            <div class="table-responsive ports-table-wrapper">
-                <table class="table align-middle mb-0 ports-table">
-                    <thead>
-                        <tr>
-                            <th>Pelabuhan</th>
-                            <th>Kota</th>
-                            <th>Tipe</th>
-                            <th>Koordinat</th>
-                            <th>Capacity</th>
-                            <th>Congestion</th>
-                            <th>Weather</th>
-                            <th>Risk</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        @forelse ($tablePorts as $port)
-                            <tr>
-                                <td>
-                                    <strong>
-                                        {{ $port['name'] ?? '-' }}
-                                    </strong>
-
-                                    <br>
-
-                                    <small>
-                                        {{ $port['code'] ?? '-' }}
-                                    </small>
-                                </td>
-
-                                <td>
-                                    {{ $port['city'] ?? '-' }}
-                                </td>
-
-                                <td>
-                                    {{ $port['type'] ?? '-' }}
-                                </td>
-
-                                <td>
-                                    {{ number_format((float) ($port['latitude'] ?? 0), 4, ',', '.') }},
-                                    {{ number_format((float) ($port['longitude'] ?? 0), 4, ',', '.') }}
-                                </td>
-
-                                <td>
-                                    {{ number_format($port['capacity_score'] ?? 0, 2, ',', '.') }}
-                                </td>
-
-                                <td>
-                                    {{ number_format($port['congestion_score'] ?? 0, 2, ',', '.') }}
-                                </td>
-
-                                <td>
-                                    {{ number_format($port['weather_exposure_score'] ?? 0, 2, ',', '.') }}
-                                </td>
-
-                                <td>
-                                    <strong>
-                                        {{ number_format($port['risk_score'] ?? 0, 2, ',', '.') }}
-                                    </strong>
-                                </td>
-
-                                <td>
-                                    <a
-                                        href="{{ route('ports.index', ['country' => $selectedCountry?->iso3_code, 'port' => $port['code'] ?? null]) }}"
-                                        class="btn btn-sm btn-outline-primary"
-                                    >
-                                        Lihat
-                                    </a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td
-                                    colspan="9"
-                                    class="text-center text-muted py-4"
-                                >
-                                    Data pelabuhan belum tersedia.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            @if ($ports->count() > $tablePorts->count())
-                <p class="ports-table-note">
-                    Menampilkan {{ $tablePorts->count() }} dari {{ $ports->count() }} pelabuhan dengan risiko tertinggi.
+                <p>
+                    Pilih port asal dan tujuan untuk menghitung estimasi jarak, waktu tempuh, dan risiko rute.
                 </p>
-            @endif
+            </div>
+
+            <form
+                method="GET"
+                action="{{ route('ports.index') }}"
+                class="ports-route-form"
+            >
+                <input
+                    type="hidden"
+                    name="country"
+                    value="{{ $selectedCountry?->iso3_code ?? 'IDN' }}"
+                >
+
+                <input
+                    type="hidden"
+                    name="port"
+                    value="{{ $selectedPortKeyword ?? '' }}"
+                >
+
+                <div>
+                    <label for="origin_port">
+                        Port Asal
+                    </label>
+
+                    <select
+                        name="origin_port"
+                        id="origin_port"
+                        class="form-select"
+                    >
+                        @forelse ($routePortOptions as $port)
+                            <option
+                                value="{{ $port['id'] }}"
+                                @selected((string) $routeOriginValue === (string) ($port['id'] ?? ''))
+                            >
+                                {{ $port['name'] ?? '-' }}
+                                —
+                                {{ $port['country']['name'] ?? '-' }}
+                                ({{ $port['code'] ?? '-' }})
+                            </option>
+                        @empty
+                            <option value="">
+                                Data port belum tersedia
+                            </option>
+                        @endforelse
+                    </select>
+                </div>
+
+                <div>
+                    <label for="destination_port">
+                        Port Tujuan
+                    </label>
+
+                    <select
+                        name="destination_port"
+                        id="destination_port"
+                        class="form-select"
+                    >
+                        @forelse ($routePortOptions as $port)
+                            <option
+                                value="{{ $port['id'] }}"
+                                @selected((string) $routeDestinationValue === (string) ($port['id'] ?? ''))
+                            >
+                                {{ $port['name'] ?? '-' }}
+                                —
+                                {{ $port['country']['name'] ?? '-' }}
+                                ({{ $port['code'] ?? '-' }})
+                            </option>
+                        @empty
+                            <option value="">
+                                Data port belum tersedia
+                            </option>
+                        @endforelse
+                    </select>
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Estimasi
+                </button>
+            </form>
+
+            <div class="ports-route-layout">
+                <article class="ports-route-map-card">
+                    <div class="ports-card-heading">
+                        <span>Peta Route Estimator</span>
+
+                        <h2>
+                            Jalur Estimasi Rute
+                        </h2>
+                    </div>
+
+                    <div id="portsRouteMap"></div>
+                </article>
+
+                <article class="ports-route-result-card">
+                    <div class="ports-route-result-grid">
+                        <div>
+                            <span>Port Asal</span>
+
+                            <strong>
+                                {{ $routeEstimatorData['origin_port']['name'] ?? 'Belum tersedia' }}
+                            </strong>
+
+                            <small>
+                                {{ $routeEstimatorData['origin_port']['country']['name'] ?? '-' }}
+                                •
+                                {{ $routeEstimatorData['origin_port']['code'] ?? '-' }}
+                            </small>
+                        </div>
+
+                        <div>
+                            <span>Port Tujuan</span>
+
+                            <strong>
+                                {{ $routeEstimatorData['destination_port']['name'] ?? 'Belum tersedia' }}
+                            </strong>
+
+                            <small>
+                                {{ $routeEstimatorData['destination_port']['country']['name'] ?? '-' }}
+                                •
+                                {{ $routeEstimatorData['destination_port']['code'] ?? '-' }}
+                            </small>
+                        </div>
+
+                        <div>
+                            <span>Jarak</span>
+
+                            <strong>
+                                {{ number_format($routeEstimatorData['distance']['sea_km'] ?? 0, 2, ',', '.') }} km
+                            </strong>
+
+                            <small>
+                                {{ number_format($routeEstimatorData['distance']['nautical_miles'] ?? 0, 2, ',', '.') }} nautical miles
+                            </small>
+                        </div>
+
+                        <div>
+                            <span>Waktu</span>
+
+                            <strong>
+                                {{ $routeEstimatorData['duration']['display'] ?? 'Belum tersedia' }}
+                            </strong>
+
+                            <small>
+                                Kecepatan {{ $routeEstimatorData['duration']['speed_knots'] ?? 18 }} knot
+                            </small>
+                        </div>
+
+                        <div>
+                            <span>Risk Rute</span>
+
+                            <strong>
+                                <b class="{{ $routeRiskClass }}">
+                                    {{ number_format($routeRiskScore, 2, ',', '.') }}
+                                </b>
+                            </strong>
+
+                            <small>
+                                {{ $routeEstimatorData['risk']['label'] ?? 'Belum dihitung' }}
+                            </small>
+                        </div>
+
+                        <div>
+                            <span>Rekomendasi</span>
+
+                            <strong>
+                                {{ $routeEstimatorData['risk']['label'] ?? 'Belum dihitung' }}
+                            </strong>
+
+                            <small>
+                                {{ $routeEstimatorData['risk']['recommendation'] ?? 'Pilih port asal dan tujuan terlebih dahulu.' }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="ports-route-note">
+                        <i class="bi bi-info-circle"></i>
+
+                        <span>
+                            Estimasi memakai koordinat pelabuhan dan perhitungan jarak awal. Sistem ini bukan pelacakan kapal real-time.
+                        </span>
+                    </div>
+                </article>
+            </div>
         </section>
     </div>
 @endsection
@@ -460,7 +658,7 @@
     <style>
         .ports-page {
             width: 100%;
-            max-width: 1180px;
+            max-width: 1120px;
             margin: 0 auto;
             padding: 14px 18px 24px;
             display: flex;
@@ -470,19 +668,19 @@
 
         .ports-top-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 300px;
-            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 12px;
             align-items: end;
         }
 
         .ports-title-area {
-            padding-left: 6px;
+            padding-left: 4px;
         }
 
         .ports-title-area h1 {
             margin: 0 0 4px;
             color: #111827;
-            font-size: 1.65rem;
+            font-size: 1.6rem;
             font-weight: 900;
             line-height: 1.1;
         }
@@ -490,19 +688,23 @@
         .ports-title-area p {
             margin: 0;
             color: #7c8aa5;
-            font-size: 0.84rem;
+            font-size: 0.83rem;
             line-height: 1.45;
-            max-width: 760px;
+            max-width: 720px;
         }
 
         .ports-country-mini-card,
         .ports-filter-card,
         .ports-stat-card,
-        .ports-card {
+        .ports-card,
+        .ports-route-result-card,
+        .ports-route-map-card {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 16px;
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            min-width: 0;
+            overflow: hidden;
         }
 
         .ports-country-mini-card {
@@ -510,7 +712,7 @@
             align-items: center;
             gap: 10px;
             padding: 10px 12px;
-            min-height: 76px;
+            min-height: 72px;
         }
 
         .ports-country-flag {
@@ -539,12 +741,14 @@
         .ports-country-mini-card span,
         .ports-stat-card span,
         .ports-card-heading span,
-        .ports-selected-grid span {
+        .ports-selected-grid span,
+        .ports-route-form label,
+        .ports-route-result-grid span {
             display: block;
             margin-bottom: 3px;
             color: #7c8aa5;
-            font-size: 0.68rem;
-            font-weight: 800;
+            font-size: 0.66rem;
+            font-weight: 850;
             text-transform: uppercase;
             letter-spacing: 0.035em;
         }
@@ -552,7 +756,7 @@
         .ports-country-mini-card strong {
             display: block;
             color: #111827;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 900;
             line-height: 1.2;
         }
@@ -560,7 +764,7 @@
         .ports-country-mini-card small {
             display: block;
             color: #7c8aa5;
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             line-height: 1.3;
         }
 
@@ -572,17 +776,19 @@
 
         .ports-filter {
             display: grid;
-            grid-template-columns: 360px 260px 105px 90px;
+            grid-template-columns: 320px 240px 96px 82px;
             gap: 8px;
             align-items: center;
         }
 
         .ports-filter .form-select,
         .ports-filter .form-control,
-        .ports-filter .btn {
+        .ports-filter .btn,
+        .ports-route-form .form-select,
+        .ports-route-form .btn {
             height: 38px;
             border-radius: 10px;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 800;
         }
 
@@ -595,25 +801,24 @@
             background: #fffbeb;
             color: #92400e;
             border: 1px solid rgba(245, 158, 11, 0.22);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 750;
         }
 
         .ports-summary-grid {
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 10px;
         }
 
         .ports-stat-card {
-            min-width: 0;
             padding: 12px 14px;
         }
 
         .ports-stat-card strong {
             display: block;
             color: #111827;
-            font-size: 0.95rem;
+            font-size: 0.93rem;
             font-weight: 900;
             line-height: 1.25;
             word-break: break-word;
@@ -629,6 +834,7 @@
 
         .ports-stat-card b,
         .ports-selected-grid b,
+        .ports-route-result-grid b,
         .risk-low,
         .risk-medium,
         .risk-high,
@@ -636,10 +842,10 @@
             display: inline-flex;
             justify-content: center;
             align-items: center;
-            min-width: 102px;
+            min-width: 86px;
             padding: 5px 8px;
             border-radius: 999px;
-            font-size: 0.68rem;
+            font-size: 0.66rem;
             font-weight: 850;
             white-space: nowrap;
         }
@@ -668,15 +874,10 @@
             border: 1px solid rgba(239, 68, 68, 0.28);
         }
 
-        .ports-main-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-            gap: 10px;
-        }
-
-        .ports-card {
+        .ports-card,
+        .ports-route-result-card,
+        .ports-route-map-card {
             padding: 14px;
-            min-width: 0;
         }
 
         .ports-card-heading {
@@ -686,16 +887,22 @@
         .ports-card-heading h2 {
             margin: 0;
             color: #111827;
-            font-size: 0.98rem;
+            font-size: 0.96rem;
             font-weight: 900;
             line-height: 1.25;
         }
 
-        .ports-selected-card p {
-            margin: 0 0 10px;
+        .ports-card-heading p {
+            margin: 4px 0 0;
             color: #64748b;
-            font-size: 0.78rem;
-            line-height: 1.45;
+            font-size: 0.74rem;
+            line-height: 1.4;
+        }
+
+        .ports-main-grid {
+            display: grid;
+            grid-template-columns: 0.78fr 1.22fr;
+            gap: 10px;
         }
 
         .ports-selected-grid {
@@ -704,14 +911,17 @@
             gap: 8px;
         }
 
-        .ports-selected-grid > div {
+        .ports-selected-grid > div,
+        .ports-route-result-grid > div {
             padding: 9px;
             border-radius: 12px;
             background: #f8fafc;
             border: 1px solid rgba(148, 163, 184, 0.14);
+            min-width: 0;
         }
 
-        .ports-selected-grid strong {
+        .ports-selected-grid strong,
+        .ports-route-result-grid strong {
             display: block;
             color: #111827;
             font-size: 0.78rem;
@@ -720,12 +930,35 @@
             word-break: break-word;
         }
 
-        #portsMap {
+        .ports-route-result-grid small {
+            display: block;
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 0.69rem;
+            line-height: 1.35;
+        }
+
+        #portsListMap,
+        #portsRouteMap {
             width: 100%;
-            height: 300px;
             border-radius: 14px;
             border: 1px solid rgba(148, 163, 184, 0.18);
             overflow: hidden;
+        }
+
+        #portsListMap {
+            height: 305px;
+        }
+
+        #portsRouteMap {
+            height: 315px;
+        }
+
+        .ports-data-grid {
+            display: grid;
+            grid-template-columns: 0.9fr 1.1fr;
+            gap: 10px;
+            align-items: start;
         }
 
         .ports-chart-box {
@@ -733,20 +966,35 @@
             height: 210px;
         }
 
+        .ports-table-heading {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .ports-table-heading small {
+            color: #7c8aa5;
+            font-size: 0.7rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
         .ports-table-wrapper {
             border: 1px solid rgba(148, 163, 184, 0.18);
             border-radius: 14px;
             overflow: auto;
+            max-height: 285px;
         }
 
         .ports-table {
-            min-width: 980px;
+            min-width: 620px;
         }
 
         .ports-table thead th {
             background: #f8fafc;
             color: #64748b;
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.035em;
@@ -755,7 +1003,7 @@
 
         .ports-table tbody td {
             color: #334155;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             border-bottom: 1px solid rgba(148, 163, 184, 0.14);
         }
 
@@ -775,18 +1023,54 @@
             font-weight: 800;
         }
 
-        .ports-table-note {
-            margin: 10px 0 0;
-            color: #7c8aa5;
-            font-size: 0.75rem;
+        .ports-route-card {
+            margin-top: 4px;
+        }
+
+        .ports-route-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 108px;
+            gap: 10px;
+            align-items: end;
+            margin-top: 12px;
+        }
+
+        .ports-route-layout {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 10px;
+            margin-top: 12px;
+            align-items: start;
+        }
+
+        .ports-route-result-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .ports-route-note {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 9px;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #64748b;
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            font-size: 0.72rem;
+            line-height: 1.4;
         }
 
         @media (max-width: 1280px) {
             .ports-summary-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
-            .ports-main-grid {
+            .ports-main-grid,
+            .ports-data-grid,
+            .ports-route-layout {
                 grid-template-columns: 1fr;
             }
         }
@@ -800,11 +1084,13 @@
                 width: 100%;
             }
 
-            .ports-filter {
+            .ports-filter,
+            .ports-route-form {
                 grid-template-columns: 1fr;
             }
 
-            .ports-filter .btn {
+            .ports-filter .btn,
+            .ports-route-form .btn {
                 width: 100%;
             }
         }
@@ -815,8 +1101,9 @@
             }
 
             .ports-summary-grid,
-            .ports-selected-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .ports-selected-grid,
+            .ports-route-result-grid {
+                grid-template-columns: 1fr;
             }
 
             .ports-title-area {
@@ -826,12 +1113,10 @@
             .ports-title-area h1 {
                 font-size: 1.45rem;
             }
-        }
 
-        @media (max-width: 520px) {
-            .ports-summary-grid,
-            .ports-selected-grid {
-                grid-template-columns: 1fr;
+            #portsListMap,
+            #portsRouteMap {
+                height: 280px;
             }
         }
     </style>
@@ -856,49 +1141,83 @@
         type="application/json"
     >{!! json_encode($selectedLocation, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 
+    <script
+        id="portRouteData"
+        type="application/json"
+    >{!! json_encode($routeMapData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            var mapElement = document.getElementById('portsMap');
-            var mapDataElement = document.getElementById('portMapData');
-            var selectedLocationElement = document.getElementById('portSelectedLocation');
+            function parseJsonElement(id, fallback) {
+                var element = document.getElementById(id);
 
-            if (mapElement && typeof L !== 'undefined') {
-                var ports = [];
-                var selectedLocation = {
-                    latitude: -6.1045,
-                    longitude: 106.8866
-                };
-
-                try {
-                    ports = JSON.parse(mapDataElement.textContent || '[]');
-                } catch (error) {
-                    ports = [];
+                if (!element) {
+                    return fallback;
                 }
 
                 try {
-                    selectedLocation = JSON.parse(selectedLocationElement.textContent || '{}');
+                    return JSON.parse(element.textContent || '');
                 } catch (error) {
-                    selectedLocation = {
-                        latitude: -6.1045,
-                        longitude: 106.8866
-                    };
+                    return fallback;
+                }
+            }
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            var ports = parseJsonElement('portMapData', []);
+            var selectedLocation = parseJsonElement('portSelectedLocation', {
+                latitude: -6.1045,
+                longitude: 106.8866
+            });
+
+            var routeData = parseJsonElement('portRouteData', {
+                available: false,
+                route_line: []
+            });
+
+            var defaultLatitude = Number(selectedLocation.latitude || -6.1045);
+            var defaultLongitude = Number(selectedLocation.longitude || 106.8866);
+
+            function buildPortPopup(port) {
+                return '<strong>' + escapeHtml(port.name || '-') + '</strong><br>' +
+                    'Kode: ' + escapeHtml(port.code || '-') + '<br>' +
+                    'Kota: ' + escapeHtml(port.city || '-') + '<br>' +
+                    'Negara: ' + escapeHtml(port.country || '-') + '<br>' +
+                    'Risk Score: ' + escapeHtml(port.risk_score || 0);
+            }
+
+            function createBaseMap(elementId, zoom) {
+                var element = document.getElementById(elementId);
+
+                if (!element || typeof L === 'undefined') {
+                    return null;
                 }
 
-                var defaultLatitude = Number(selectedLocation.latitude || -6.1045);
-                var defaultLongitude = Number(selectedLocation.longitude || 106.8866);
-
-                var map = L.map('portsMap', {
+                var map = L.map(elementId, {
                     scrollWheelZoom: true,
                     dragging: true,
                     zoomControl: true
-                }).setView([defaultLatitude, defaultLongitude], 6);
+                }).setView([defaultLatitude, defaultLongitude], zoom);
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; OpenStreetMap'
                 }).addTo(map);
 
-                var markerGroup = L.featureGroup().addTo(map);
+                return map;
+            }
+
+            var listMap = createBaseMap('portsListMap', 6);
+
+            if (listMap) {
+                var listMarkerGroup = L.featureGroup().addTo(listMap);
 
                 ports.forEach(function (port) {
                     var latitude = Number(port.latitude);
@@ -911,33 +1230,88 @@
                         return;
                     }
 
-                    var marker = L.marker([
+                    L.marker([
                         latitude,
                         longitude
-                    ]).bindPopup(
-                        '<strong>' + (port.name || '-') + '</strong><br>' +
-                        'Kode: ' + (port.code || '-') + '<br>' +
-                        'Kota: ' + (port.city || '-') + '<br>' +
-                        'Negara: ' + (port.country || '-') + '<br>' +
-                        'Capacity: ' + (port.capacity_score || 0) + '<br>' +
-                        'Congestion: ' + (port.congestion_score || 0) + '<br>' +
-                        'Weather: ' + (port.weather_exposure_score || 0) + '<br>' +
-                        'Risk Score: ' + (port.risk_score || 0)
-                    );
-
-                    marker.addTo(markerGroup);
+                    ])
+                        .bindPopup(buildPortPopup(port))
+                        .addTo(listMarkerGroup);
                 });
 
-                if (markerGroup.getLayers().length > 1) {
-                    map.fitBounds(markerGroup.getBounds(), {
-                        padding: [30, 30]
+                if (listMarkerGroup.getLayers().length > 1) {
+                    listMap.fitBounds(listMarkerGroup.getBounds(), {
+                        padding: [28, 28]
                     });
-                } else if (markerGroup.getLayers().length === 1) {
-                    map.setView(markerGroup.getLayers()[0].getLatLng(), 8);
+                } else if (listMarkerGroup.getLayers().length === 1) {
+                    listMap.setView(listMarkerGroup.getLayers()[0].getLatLng(), 8);
                 }
 
                 setTimeout(function () {
-                    map.invalidateSize();
+                    listMap.invalidateSize();
+                }, 300);
+            }
+
+            var routeMap = createBaseMap('portsRouteMap', 4);
+
+            if (routeMap) {
+                var routeMarkerGroup = L.featureGroup().addTo(routeMap);
+
+                if (
+                    routeData.available &&
+                    Array.isArray(routeData.route_line) &&
+                    routeData.route_line.length === 2
+                ) {
+                    var originPoint = routeData.route_line[0];
+                    var destinationPoint = routeData.route_line[1];
+
+                    var routePoints = [
+                        [
+                            Number(originPoint.latitude),
+                            Number(originPoint.longitude)
+                        ],
+                        [
+                            Number(destinationPoint.latitude),
+                            Number(destinationPoint.longitude)
+                        ]
+                    ];
+
+                    var routeLine = L.polyline(routePoints, {
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: '8, 8'
+                    }).addTo(routeMap);
+
+                    if (routeData.origin_port) {
+                        L.marker(routePoints[0])
+                            .bindPopup(
+                                '<strong>Port Asal</strong><br>' +
+                                escapeHtml(routeData.origin_port.name || '-') + '<br>' +
+                                'Negara: ' + escapeHtml(routeData.origin_port.country ? routeData.origin_port.country.name : '-') + '<br>' +
+                                'Risk: ' + escapeHtml(routeData.origin_port.risk_score || 0)
+                            )
+                            .addTo(routeMarkerGroup);
+                    }
+
+                    if (routeData.destination_port) {
+                        L.marker(routePoints[1])
+                            .bindPopup(
+                                '<strong>Port Tujuan</strong><br>' +
+                                escapeHtml(routeData.destination_port.name || '-') + '<br>' +
+                                'Negara: ' + escapeHtml(routeData.destination_port.country ? routeData.destination_port.country.name : '-') + '<br>' +
+                                'Risk: ' + escapeHtml(routeData.destination_port.risk_score || 0)
+                            )
+                            .addTo(routeMarkerGroup);
+                    }
+
+                    routeMap.fitBounds(routeLine.getBounds(), {
+                        padding: [35, 35]
+                    });
+                } else {
+                    routeMap.setView([defaultLatitude, defaultLongitude], 4);
+                }
+
+                setTimeout(function () {
+                    routeMap.invalidateSize();
                 }, 300);
             }
 
@@ -945,15 +1319,7 @@
                 return;
             }
 
-            var chartDataElement = document.getElementById('portChartData');
-            var chartData = {};
-
-            try {
-                chartData = JSON.parse(chartDataElement.textContent || '{}');
-            } catch (error) {
-                chartData = {};
-            }
-
+            var chartData = parseJsonElement('portChartData', {});
             var canvas = document.getElementById('portRiskChart');
 
             if (!canvas) {

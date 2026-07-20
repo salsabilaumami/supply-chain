@@ -8,10 +8,15 @@ use App\Models\ExchangeRate;
 use App\Models\NewsSentiment;
 use App\Models\RiskScore;
 use App\Models\WeatherData;
+use App\Services\ExchangeRateService;
+use App\Services\NewsService;
 use App\Services\RiskScoringService;
+use App\Services\WeatherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use Throwable;
 
 class RiskController extends Controller
 {
@@ -19,56 +24,75 @@ class RiskController extends Controller
 
     public function index(
         Request $request,
-        RiskScoringService $riskScoringService
+        RiskScoringService $riskScoringService,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
     ): View {
         return view('risk.index', $this->buildRiskData(
             $request,
-            $riskScoringService
+            $riskScoringService,
+            $weatherService,
+            $exchangeRateService,
+            $newsService
         ));
     }
 
     public function show(
         Request $request,
-        RiskScoringService $riskScoringService
+        RiskScoringService $riskScoringService,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
     ): JsonResponse {
         $data = $this->buildRiskData(
             $request,
-            $riskScoringService
+            $riskScoringService,
+            $weatherService,
+            $exchangeRateService,
+            $newsService
         );
 
         return response()->json([
             'success' => true,
-            'message' => 'Data risk scoring berhasil dimuat.',
-            'selected_country' => $data['selectedCountry'],
-            'weights' => $data['weights'],
-            'components' => $data['components'],
-            'weighted_components' => $data['weightedComponents'],
+            'message' => 'Risk score berhasil dihitung.',
+            'country' => $data['selectedCountry'],
             'total_score' => $data['totalScore'],
             'risk_level' => $data['riskLevel'],
             'risk_label' => $data['riskLabel'],
+            'components' => $data['components'],
+            'source_status' => $data['sourceStatus'],
+            'recommendation' => $data['recommendation'],
             'chart_data' => $data['chartData'],
+            'sync_warnings' => $data['syncWarnings'],
         ]);
     }
 
     private function buildRiskData(
         Request $request,
-        RiskScoringService $riskScoringService
+        RiskScoringService $riskScoringService,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
     ): array {
         $countries = Country::query()
-            ->alphabetical()
+            ->orderBy('name')
             ->get();
 
         $selectedIsoCode = strtoupper(
-            trim($request->string('country', 'IDN')->toString())
+            trim($request->string('country', 'DEU')->toString())
         );
 
         $selectedCountry = Country::query()
-            ->byIsoCode($selectedIsoCode)
+            ->where(function ($query) use ($selectedIsoCode) {
+                $query->where('iso3_code', $selectedIsoCode)
+                    ->orWhere('iso2_code', $selectedIsoCode);
+            })
             ->first();
 
         if (!$selectedCountry) {
             $selectedCountry = Country::query()
-                ->where('iso3_code', 'IDN')
+                ->where('iso3_code', 'DEU')
                 ->first();
         }
 
@@ -76,159 +100,246 @@ class RiskController extends Controller
             $selectedCountry = $countries->firstOrFail();
         }
 
-        $weights = $riskScoringService->getWeights();
+        $forceRefresh = $request->boolean('refresh');
+        $syncWarnings = [];
 
-        $weatherData = $this->getLatestWeatherData($selectedCountry);
-        $inflationData = $this->getLatestInflationData($selectedCountry);
-        $exchangeRate = $this->getLatestExchangeRate($selectedCountry);
+        $weather = $this->syncWeather(
+            $selectedCountry,
+            $weatherService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $exchangeRate = $this->syncCurrency(
+            $selectedCountry,
+            $exchangeRateService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $this->syncNews(
+            $selectedCountry,
+            $newsService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $inflation = $this->getLatestInflation($selectedCountry);
         $newsSummary = $this->getNewsSummary($selectedCountry);
+        $inflationValue = $this->getEconomicValue($inflation);
 
-        $weatherScore = $this->resolveWeatherScore(
-            $weatherData,
-            $riskScoringService
+        $weatherScore = $weather
+            ? $riskScoringService->calculateWeatherScore(
+                (float) ($weather->precipitation ?? 0),
+                (float) ($weather->wind_speed ?? 0),
+                (int) ($weather->weather_code ?? 0)
+            )
+            : 25.0;
+
+        $inflationScore = $riskScoringService->calculateInflationScore(
+            $inflationValue
         );
 
-        $inflationRate = $inflationData
-            ? (float) $inflationData->value
-            : null;
-
-        $inflationScore = $inflationRate !== null
-            ? $riskScoringService->calculateInflationScore($inflationRate)
-            : 0.0;
-
-        $currencyScore = $this->resolveCurrencyScore(
-            $exchangeRate,
-            $riskScoringService
+        $currencyScore = $riskScoringService->calculateCurrencyScore(
+            $exchangeRate?->change_percentage !== null
+                ? (float) $exchangeRate->change_percentage
+                : null,
+            $exchangeRate?->currency_risk !== null
+                ? (float) $exchangeRate->currency_risk
+                : null
         );
 
-        $newsScore = $newsSummary['risk_score'];
+        $newsScore = $riskScoringService->calculateNewsScore(
+            $newsSummary['positive_count'],
+            $newsSummary['neutral_count'],
+            $newsSummary['negative_count'],
+            $newsSummary['average_risk_score']
+        );
 
-        $totalScore = $riskScoringService->calculateTotalScore(
+        $result = $riskScoringService->calculateDetailedScore(
             $weatherScore,
             $inflationScore,
             $currencyScore,
             $newsScore
         );
 
-        $riskLevel = $riskScoringService->determineRiskLevel($totalScore);
-        $riskLabel = $this->riskLevelLabel($riskLevel);
+        $savedRiskScore = $this->storeRiskScore(
+            $selectedCountry,
+            $result
+        );
 
-        $weightedComponents = [
-            'weather' => round($weatherScore * $weights['weather'], 2),
-            'inflation' => round($inflationScore * $weights['inflation'], 2),
-            'currency' => round($currencyScore * $weights['currency'], 2),
-            'news' => round($newsScore * $weights['news'], 2),
+        $components = [
+            [
+                'key' => 'weather',
+                'label' => 'Weather',
+                'score' => $result['weather_score'],
+                'weight' => RiskScoringService::WEATHER_WEIGHT,
+                'weighted_score' => $result['weather_weighted'],
+                'source_value' => $weather
+                    ? number_format((float) ($weather->temperature ?? 0), 1, ',', '.')
+                        . '°C, hujan '
+                        . number_format((float) ($weather->precipitation ?? 0), 2, ',', '.')
+                        . ' mm, angin '
+                        . number_format((float) ($weather->wind_speed ?? 0), 1, ',', '.')
+                        . ' km/jam'
+                    : 'Data cuaca belum tersedia, memakai baseline 25',
+                'description' => 'Menilai risiko berdasarkan curah hujan, kecepatan angin, dan kondisi cuaca.',
+                'status' => $weather ? 'Tersedia' : 'Baseline',
+            ],
+            [
+                'key' => 'inflation',
+                'label' => 'Inflation',
+                'score' => $result['inflation_score'],
+                'weight' => RiskScoringService::INFLATION_WEIGHT,
+                'weighted_score' => $result['inflation_weighted'],
+                'source_value' => $inflationValue !== null
+                    ? number_format($inflationValue, 2, ',', '.') . '%'
+                    : 'Data inflasi belum tersedia, memakai baseline 30',
+                'description' => 'Menilai tekanan biaya ekonomi menggunakan nilai inflasi terbaru.',
+                'status' => $inflationValue !== null ? 'Tersedia' : 'Baseline',
+            ],
+            [
+                'key' => 'currency',
+                'label' => 'Exchange Rate',
+                'score' => $result['currency_score'],
+                'weight' => RiskScoringService::CURRENCY_WEIGHT,
+                'weighted_score' => $result['currency_weighted'],
+                'source_value' => $exchangeRate
+                    ? '1 '
+                        . ($exchangeRate->base_currency ?? 'USD')
+                        . ' = '
+                        . number_format((float) ($exchangeRate->rate ?? 0), 4, ',', '.')
+                        . ' '
+                        . ($exchangeRate->target_currency ?? $selectedCountry->currency_code ?? '-')
+                    : 'Data kurs belum tersedia, memakai baseline 20',
+                'description' => 'Menilai risiko berdasarkan perubahan nilai tukar mata uang terhadap USD.',
+                'status' => $exchangeRate ? 'Tersedia' : 'Baseline',
+            ],
+            [
+                'key' => 'news',
+                'label' => 'News Sentiment',
+                'score' => $result['news_score'],
+                'weight' => RiskScoringService::NEWS_WEIGHT,
+                'weighted_score' => $result['news_weighted'],
+                'source_value' => $newsSummary['total_articles'] . ' berita dianalisis',
+                'description' => 'Menilai sentimen berita terkait logistik, perdagangan, ekonomi, dan geopolitik.',
+                'status' => $newsSummary['total_articles'] > 0 ? 'Tersedia' : 'Baseline',
+            ],
         ];
-
-        $latestStoredRisk = RiskScore::query()
-            ->where('country_id', $selectedCountry->id)
-            ->latest('calculated_at')
-            ->latest('id')
-            ->first();
 
         return [
             'countries' => $countries,
             'selectedCountry' => $selectedCountry,
-            'weights' => $weights,
-            'components' => [
-                'weather' => [
-                    'label' => 'Weather',
-                    'score' => $weatherScore,
-                    'weight' => $weights['weather'],
-                    'weighted_score' => $weightedComponents['weather'],
-                    'description' => 'Risiko cuaca dihitung dari hujan, angin, dan kondisi cuaca.',
-                    'source_value' => $this->formatWeatherSource($weatherData),
-                ],
-                'inflation' => [
-                    'label' => 'Inflation',
-                    'score' => $inflationScore,
-                    'weight' => $weights['inflation'],
-                    'weighted_score' => $weightedComponents['inflation'],
-                    'description' => 'Risiko inflasi dihitung dari tingkat inflasi negara.',
-                    'source_value' => $inflationRate !== null
-                        ? number_format($inflationRate, 2, ',', '.') . '%'
-                        : 'Belum tersedia',
-                ],
-                'currency' => [
-                    'label' => 'Exchange Rate',
-                    'score' => $currencyScore,
-                    'weight' => $weights['currency'],
-                    'weighted_score' => $weightedComponents['currency'],
-                    'description' => 'Risiko kurs dihitung dari perubahan nilai tukar.',
-                    'source_value' => $exchangeRate
-                        ? $exchangeRate->base_currency . ' ke ' . $exchangeRate->target_currency
-                        : 'Belum tersedia',
-                ],
-                'news' => [
-                    'label' => 'News Sentiment',
-                    'score' => $newsScore,
-                    'weight' => $weights['news'],
-                    'weighted_score' => $weightedComponents['news'],
-                    'description' => 'Risiko berita dihitung dari sentimen negatif pada berita logistik, trade, shipping, dan economy.',
-                    'source_value' => $newsSummary['display'],
-                ],
+            'totalScore' => $result['total_score'],
+            'riskLevel' => $result['risk_level'],
+            'riskLabel' => $result['risk_label'],
+            'components' => $components,
+            'sourceStatus' => [
+                'weather' => $weather ? 'Tersedia' : 'Baseline',
+                'inflation' => $inflationValue !== null ? 'Tersedia' : 'Baseline',
+                'currency' => $exchangeRate ? 'Tersedia' : 'Baseline',
+                'news' => $newsSummary['total_articles'] > 0 ? 'Tersedia' : 'Baseline',
             ],
-            'weightedComponents' => $weightedComponents,
-            'totalScore' => $totalScore,
-            'riskLevel' => $riskLevel,
-            'riskLabel' => $riskLabel,
-            'latestStoredRisk' => $latestStoredRisk,
+            'recommendation' => $riskScoringService->getRecommendation(
+                $result['total_score'],
+                $selectedCountry->name
+            ),
+            'latestRiskScore' => $savedRiskScore,
+            'syncWarnings' => array_values(array_unique($syncWarnings)),
             'chartData' => [
                 'components' => [
-                    'labels' => [
-                        'Weather',
-                        'Inflation',
-                        'Exchange Rate',
-                        'News Sentiment',
-                    ],
-                    'scores' => [
-                        $weatherScore,
-                        $inflationScore,
-                        $currencyScore,
-                        $newsScore,
-                    ],
-                    'weighted' => [
-                        $weightedComponents['weather'],
-                        $weightedComponents['inflation'],
-                        $weightedComponents['currency'],
-                        $weightedComponents['news'],
-                    ],
+                    'labels' => collect($components)->pluck('label')->values()->all(),
+                    'scores' => collect($components)->pluck('score')->values()->all(),
+                    'weighted' => collect($components)->pluck('weighted_score')->values()->all(),
                 ],
             ],
         ];
     }
 
-    private function getLatestWeatherData(Country $country): ?WeatherData
-    {
-        return WeatherData::query()
-            ->where('country_id', $country->id)
-            ->latest('recorded_at')
-            ->latest('id')
-            ->first();
+    private function syncWeather(
+        Country $country,
+        WeatherService $weatherService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): ?WeatherData {
+        try {
+            return $weatherService->getCurrentWeather(
+                $country,
+                $forceRefresh
+            );
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'Weather: ' . $exception->getMessage();
+
+            return WeatherData::query()
+                ->where('country_id', $country->id)
+                ->latest('recorded_at')
+                ->first();
+        }
     }
 
-    private function getLatestInflationData(Country $country): ?EconomicIndicator
+    private function syncCurrency(
+        Country $country,
+        ExchangeRateService $exchangeRateService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): ?ExchangeRate {
+        try {
+            if (!$country->currency_code) {
+                throw new \RuntimeException('Kode mata uang negara belum tersedia.');
+            }
+
+            return $exchangeRateService->getLatestRate(
+                $country,
+                'USD',
+                $forceRefresh
+            );
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'Currency: ' . $exception->getMessage();
+
+            return ExchangeRate::query()
+                ->where('country_id', $country->id)
+                ->where('base_currency', 'USD')
+                ->when(
+                    $country->currency_code,
+                    fn ($query) => $query->where('target_currency', $country->currency_code)
+                )
+                ->latest('recorded_at')
+                ->first();
+        }
+    }
+
+    private function syncNews(
+        Country $country,
+        NewsService $newsService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): void {
+        try {
+            $hasNews = NewsSentiment::query()
+                ->whereHas('newsCache', function ($query) use ($country) {
+                    $query->where('country_id', $country->id);
+                })
+                ->exists();
+
+            if ($forceRefresh || !$hasNews) {
+                $newsService->getLatestNews(
+                    $country,
+                    $forceRefresh,
+                    'all'
+                );
+            }
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'News: ' . $exception->getMessage();
+        }
+    }
+
+    private function getLatestInflation(Country $country): ?EconomicIndicator
     {
         return EconomicIndicator::query()
             ->where('country_id', $country->id)
             ->where('indicator_code', self::INFLATION_CODE)
-            ->latest('year')
-            ->latest('id')
-            ->first();
-    }
-
-    private function getLatestExchangeRate(Country $country): ?ExchangeRate
-    {
-        if (!$country->currency_code) {
-            return null;
-        }
-
-        return ExchangeRate::query()
-            ->where('country_id', $country->id)
-            ->where('base_currency', 'USD')
-            ->where('target_currency', $country->currency_code)
-            ->latest('recorded_at')
-            ->latest('id')
+            ->orderByDesc('year')
+            ->orderByDesc('fetched_at')
             ->first();
     }
 
@@ -239,128 +350,87 @@ class RiskController extends Controller
                 $query->where('country_id', $country->id);
             })
             ->latest('analyzed_at')
-            ->limit(20)
+            ->limit(10)
             ->get();
 
-        if ($sentiments->isEmpty()) {
-            return [
-                'risk_score' => 50.0,
-                'positive' => 0,
-                'neutral' => 0,
-                'negative' => 0,
-                'display' => 'Belum tersedia',
-            ];
-        }
+        $positiveCount = $sentiments
+            ->where('sentiment', 'positive')
+            ->count();
 
-        $positive = $sentiments->where('sentiment', 'positive')->count();
-        $neutral = $sentiments->where('sentiment', 'neutral')->count();
-        $negative = $sentiments->where('sentiment', 'negative')->count();
+        $neutralCount = $sentiments
+            ->where('sentiment', 'neutral')
+            ->count();
 
-        $riskScore = round((float) $sentiments->avg('risk_score'), 2);
+        $negativeCount = $sentiments
+            ->where('sentiment', 'negative')
+            ->count();
+
+        $averageRiskScore = $sentiments->isNotEmpty()
+            ? round((float) $sentiments->avg('risk_score'), 2)
+            : null;
 
         return [
-            'risk_score' => $riskScore,
-            'positive' => $positive,
-            'neutral' => $neutral,
-            'negative' => $negative,
-            'display' => 'Positive ' . $positive . ' • Neutral ' . $neutral . ' • Negative ' . $negative,
+            'total_articles' => $sentiments->count(),
+            'positive_count' => $positiveCount,
+            'neutral_count' => $neutralCount,
+            'negative_count' => $negativeCount,
+            'average_risk_score' => $averageRiskScore,
         ];
     }
 
-    private function resolveWeatherScore(
-        ?WeatherData $weatherData,
-        RiskScoringService $riskScoringService
-    ): float {
-        if (!$weatherData) {
-            return 0.0;
-        }
-
-        if ($weatherData->weather_risk !== null) {
-            return round((float) $weatherData->weather_risk, 2);
-        }
-
-        if ($weatherData->risk_score !== null) {
-            return round((float) $weatherData->risk_score, 2);
-        }
-
-        $precipitation = (float) (
-            $weatherData->precipitation
-            ?? $weatherData->precipitation_sum
-            ?? 0
-        );
-
-        $windSpeed = (float) (
-            $weatherData->wind_speed
-            ?? $weatherData->wind_speed_10m
-            ?? 0
-        );
-
-        $weatherCode = (int) (
-            $weatherData->weather_code
-            ?? 0
-        );
-
-        return $riskScoringService->calculateWeatherScore(
-            $precipitation,
-            $windSpeed,
-            $weatherCode
-        );
-    }
-
-    private function resolveCurrencyScore(
-        ?ExchangeRate $exchangeRate,
-        RiskScoringService $riskScoringService
-    ): float {
-        if (!$exchangeRate) {
-            return 0.0;
-        }
-
-        if ($exchangeRate->currency_risk !== null) {
-            return round((float) $exchangeRate->currency_risk, 2);
-        }
-
-        if ($exchangeRate->change_percentage !== null) {
-            return $riskScoringService->calculateCurrencyScore(
-                (float) $exchangeRate->change_percentage
-            );
-        }
-
-        return 20.0;
-    }
-
-    private function formatWeatherSource(?WeatherData $weatherData): string
+    private function getEconomicValue(?EconomicIndicator $indicator): ?float
     {
-        if (!$weatherData) {
-            return 'Belum tersedia';
+        if (!$indicator) {
+            return null;
         }
 
-        $temperature = $weatherData->temperature
-            ?? $weatherData->temperature_2m
+        $value = $indicator->value
+            ?? $indicator->raw_value
             ?? null;
 
-        $precipitation = $weatherData->precipitation
-            ?? $weatherData->precipitation_sum
-            ?? null;
-
-        $windSpeed = $weatherData->wind_speed
-            ?? $weatherData->wind_speed_10m
-            ?? null;
-
-        return 'Temp '
-            . ($temperature !== null ? number_format((float) $temperature, 1, ',', '.') . '°C' : '-')
-            . ' • Hujan '
-            . ($precipitation !== null ? number_format((float) $precipitation, 1, ',', '.') . ' mm' : '-')
-            . ' • Angin '
-            . ($windSpeed !== null ? number_format((float) $windSpeed, 1, ',', '.') . ' km/j' : '-');
+        return is_numeric($value)
+            ? (float) $value
+            : null;
     }
 
-    private function riskLevelLabel(string $riskLevel): string
-    {
-        return match ($riskLevel) {
-            'critical' => 'Critical Risk',
-            'high' => 'High Risk',
-            'moderate' => 'Medium Risk',
-            default => 'Low Risk',
-        };
+    private function storeRiskScore(
+        Country $country,
+        array $result
+    ): ?RiskScore {
+        try {
+            $riskScore = new RiskScore();
+
+            $this->setColumnValue($riskScore, 'country_id', $country->id);
+            $this->setColumnValue($riskScore, 'weather_score', $result['weather_score']);
+            $this->setColumnValue($riskScore, 'inflation_score', $result['inflation_score']);
+            $this->setColumnValue($riskScore, 'currency_score', $result['currency_score']);
+            $this->setColumnValue($riskScore, 'news_score', $result['news_score']);
+            $this->setColumnValue($riskScore, 'total_score', $result['total_score']);
+            $this->setColumnValue($riskScore, 'risk_level', $result['risk_level']);
+            $this->setColumnValue($riskScore, 'calculated_at', now());
+
+            $riskScore->save();
+
+            return $riskScore;
+        } catch (Throwable) {
+            return RiskScore::query()
+                ->where('country_id', $country->id)
+                ->when(
+                    Schema::hasColumn('risk_scores', 'calculated_at'),
+                    fn ($query) => $query->latest('calculated_at'),
+                    fn ($query) => $query->latest()
+                )
+                ->first();
+        }
+    }
+
+    private function setColumnValue(
+        RiskScore $riskScore,
+        string $column,
+        mixed $value
+    ): void {
+        if (Schema::hasColumn('risk_scores', $column)) {
+            $riskScore->{$column} = $value;
+        }
     }
 }

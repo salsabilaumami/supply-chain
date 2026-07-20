@@ -9,12 +9,16 @@ use App\Models\NewsSentiment;
 use App\Models\RiskScore;
 use App\Models\Watchlist;
 use App\Models\WeatherData;
+use App\Services\ExchangeRateService;
+use App\Services\NewsService;
+use App\Services\WeatherService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Throwable;
 
@@ -22,9 +26,18 @@ class WatchlistController extends Controller
 {
     private const INFLATION_CODE = 'FP.CPI.TOTL.ZG';
 
-    public function index(Request $request): View
-    {
-        return view('watchlist.index', $this->buildWatchlistData($request));
+    public function index(
+        Request $request,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
+    ): View {
+        return view('watchlist.index', $this->buildWatchlistData(
+            $request,
+            $weatherService,
+            $exchangeRateService,
+            $newsService
+        ));
     }
 
     public function store(Request $request): RedirectResponse
@@ -53,9 +66,18 @@ class WatchlistController extends Controller
             ->with('success', 'Negara berhasil dihapus dari Favorite Monitoring List.');
     }
 
-    public function show(Request $request): JsonResponse
-    {
-        $data = $this->buildWatchlistData($request);
+    public function show(
+        Request $request,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
+    ): JsonResponse {
+        $data = $this->buildWatchlistData(
+            $request,
+            $weatherService,
+            $exchangeRateService,
+            $newsService
+        );
 
         return response()->json([
             'success' => true,
@@ -63,12 +85,19 @@ class WatchlistController extends Controller
             'summary' => $data['summary'],
             'watchlist' => $data['watchlist'],
             'chart_data' => $data['chartData'],
+            'sync_warnings' => $data['syncWarnings'],
         ]);
     }
 
-    private function buildWatchlistData(Request $request): array
-    {
+    private function buildWatchlistData(
+        Request $request,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService
+    ): array {
         $userId = $request->user()->id;
+        $forceRefresh = $request->boolean('refresh');
+        $syncWarnings = [];
 
         $favoriteRows = Watchlist::query()
             ->with('country')
@@ -90,7 +119,22 @@ class WatchlistController extends Controller
         $watchlist = $favoriteRows
             ->pluck('country')
             ->filter()
-            ->map(fn (Country $country) => $this->buildCountryItem($country))
+            ->map(function (Country $country) use (
+                $weatherService,
+                $exchangeRateService,
+                $newsService,
+                $forceRefresh,
+                &$syncWarnings
+            ) {
+                return $this->buildCountryItem(
+                    $country,
+                    $weatherService,
+                    $exchangeRateService,
+                    $newsService,
+                    $forceRefresh,
+                    $syncWarnings
+                );
+            })
             ->sortByDesc('risk_score.total_score')
             ->values();
 
@@ -101,7 +145,195 @@ class WatchlistController extends Controller
             'watchlist' => $watchlist,
             'availableCountries' => $availableCountries,
             'chartData' => $this->buildChartData($watchlist, $summary),
+            'syncWarnings' => array_values(array_unique($syncWarnings)),
         ];
+    }
+
+    private function buildCountryItem(
+        Country $country,
+        WeatherService $weatherService,
+        ExchangeRateService $exchangeRateService,
+        NewsService $newsService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): array {
+        $latestRiskScore = $this->getLatestRiskScore($country);
+
+        $latestWeather = $this->syncWeather(
+            $country,
+            $weatherService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $latestExchangeRate = $this->syncCurrency(
+            $country,
+            $exchangeRateService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $latestInflation = $this->getLatestInflation($country);
+
+        $this->syncNews(
+            $country,
+            $newsService,
+            $forceRefresh,
+            $syncWarnings
+        );
+
+        $newsSummary = $this->getNewsSummary($country);
+
+        $weatherScore = $latestWeather
+            ? round((float) $latestWeather->weather_risk, 2)
+            : round((float) ($latestRiskScore?->weather_score ?? 25), 2);
+
+        $inflationScore = $latestInflation
+            ? $this->resolveInflationScore((float) $this->getEconomicValue($latestInflation))
+            : round((float) ($latestRiskScore?->inflation_score ?? 30), 2);
+
+        $currencyScore = $latestExchangeRate
+            ? round((float) $latestExchangeRate->currency_risk, 2)
+            : round((float) ($latestRiskScore?->currency_score ?? 20), 2);
+
+        $newsScore = ($newsSummary['average_risk_score'] ?? 0) > 0
+            ? round((float) $newsSummary['average_risk_score'], 2)
+            : round((float) ($latestRiskScore?->news_score ?? 35), 2);
+
+        $totalScore = round(
+            ($weatherScore * 0.30)
+            + ($inflationScore * 0.20)
+            + ($currencyScore * 0.10)
+            + ($newsScore * 0.40),
+            2
+        );
+
+        $riskLevel = $this->riskLevelFromScore($totalScore);
+
+        $lastUpdate = $this->latestDateDisplay([
+            $latestRiskScore?->calculated_at,
+            $latestWeather?->recorded_at,
+            $latestExchangeRate?->recorded_at,
+            $latestInflation?->fetched_at,
+            $newsSummary['last_analyzed_at'] ?? null,
+        ]);
+
+        return [
+            'country' => $this->formatCountry($country),
+            'risk_score' => [
+                'weather_score' => $weatherScore,
+                'inflation_score' => $inflationScore,
+                'currency_score' => $currencyScore,
+                'news_score' => $newsScore,
+                'total_score' => $totalScore,
+                'risk_level' => $riskLevel,
+                'risk_level_label' => $this->riskLevelLabel($riskLevel),
+            ],
+            'weather' => [
+                'available' => $latestWeather !== null,
+                'temperature' => $latestWeather
+                    ? round((float) $latestWeather->temperature, 2)
+                    : null,
+                'precipitation' => $latestWeather
+                    ? round((float) $latestWeather->precipitation, 2)
+                    : null,
+                'wind_speed' => $latestWeather
+                    ? round((float) $latestWeather->wind_speed, 2)
+                    : null,
+                'weather_code' => $latestWeather?->weather_code,
+                'condition' => $latestWeather
+                    ? $this->weatherCondition((int) $latestWeather->weather_code)
+                    : 'Belum tersedia',
+                'recorded_at' => $this->dateDisplay($latestWeather?->recorded_at),
+            ],
+            'currency' => [
+                'available' => $latestExchangeRate !== null,
+                'base_currency' => $latestExchangeRate?->base_currency,
+                'target_currency' => $latestExchangeRate?->target_currency,
+                'rate' => $latestExchangeRate
+                    ? round((float) $latestExchangeRate->rate, 4)
+                    : null,
+                'change_percentage' => $latestExchangeRate?->change_percentage !== null
+                    ? round((float) $latestExchangeRate->change_percentage, 4)
+                    : null,
+                'recorded_at' => $this->dateDisplay($latestExchangeRate?->recorded_at),
+            ],
+            'news' => $newsSummary,
+            'economic' => [
+                'inflation_available' => $latestInflation !== null,
+                'inflation_value' => $latestInflation
+                    ? round((float) $this->getEconomicValue($latestInflation), 2)
+                    : null,
+                'inflation_year' => $latestInflation?->year,
+            ],
+            'last_update' => $lastUpdate,
+        ];
+    }
+
+    private function syncWeather(
+        Country $country,
+        WeatherService $weatherService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): ?WeatherData {
+        try {
+            return $weatherService->getCurrentWeather(
+                $country,
+                $forceRefresh
+            );
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'Weather ' . $country->name . ': ' . $exception->getMessage();
+
+            return $this->getLatestWeather($country);
+        }
+    }
+
+    private function syncCurrency(
+        Country $country,
+        ExchangeRateService $exchangeRateService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): ?ExchangeRate {
+        try {
+            if (!$country->currency_code) {
+                throw new \RuntimeException('Kode mata uang belum tersedia.');
+            }
+
+            return $exchangeRateService->getLatestRate(
+                $country,
+                'USD',
+                $forceRefresh
+            );
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'Currency ' . $country->name . ': ' . $exception->getMessage();
+
+            return $this->getLatestExchangeRate($country);
+        }
+    }
+
+    private function syncNews(
+        Country $country,
+        NewsService $newsService,
+        bool $forceRefresh,
+        array &$syncWarnings
+    ): void {
+        try {
+            $hasNews = NewsSentiment::query()
+                ->whereHas('newsCache', function ($query) use ($country) {
+                    $query->where('country_id', $country->id);
+                })
+                ->exists();
+
+            if ($forceRefresh || !$hasNews) {
+                $newsService->getLatestNews(
+                    $country,
+                    $forceRefresh,
+                    'all'
+                );
+            }
+        } catch (Throwable $exception) {
+            $syncWarnings[] = 'News ' . $country->name . ': ' . $exception->getMessage();
+        }
     }
 
     private function buildSummary(Collection $watchlist): array
@@ -194,109 +426,16 @@ class WatchlistController extends Controller
         ];
     }
 
-    private function buildCountryItem(Country $country): array
-    {
-        $latestRiskScore = $this->getLatestRiskScore($country);
-        $latestWeather = $this->getLatestWeather($country);
-        $latestExchangeRate = $this->getLatestExchangeRate($country);
-        $latestInflation = $this->getLatestInflation($country);
-        $newsSummary = $this->getNewsSummary($country);
-
-        $weatherScore = $latestWeather
-            ? round((float) $latestWeather->weather_risk, 2)
-            : round((float) ($latestRiskScore?->weather_score ?? 0), 2);
-
-        $inflationScore = $latestInflation
-            ? $this->resolveInflationScore((float) $latestInflation->value)
-            : round((float) ($latestRiskScore?->inflation_score ?? 0), 2);
-
-        $currencyScore = $latestExchangeRate
-            ? round((float) $latestExchangeRate->currency_risk, 2)
-            : round((float) ($latestRiskScore?->currency_score ?? 0), 2);
-
-        $newsScore = ($newsSummary['average_risk_score'] ?? 0) > 0
-            ? round((float) $newsSummary['average_risk_score'], 2)
-            : round((float) ($latestRiskScore?->news_score ?? 0), 2);
-
-        $hasComponentData = $weatherScore > 0
-            || $inflationScore > 0
-            || $currencyScore > 0
-            || $newsScore > 0;
-
-        $totalScore = $hasComponentData
-            ? round(
-                ($weatherScore * 0.30)
-                + ($inflationScore * 0.20)
-                + ($currencyScore * 0.10)
-                + ($newsScore * 0.40),
-                2
-            )
-            : round((float) ($latestRiskScore?->total_score ?? 0), 2);
-
-        $riskLevel = $this->riskLevelFromScore($totalScore);
-
-        $lastUpdate = $this->latestDateDisplay([
-            $latestRiskScore?->calculated_at,
-            $latestWeather?->recorded_at,
-            $latestExchangeRate?->recorded_at,
-            $latestInflation?->fetched_at,
-            $newsSummary['last_analyzed_at'] ?? null,
-        ]);
-
-        return [
-            'country' => $this->formatCountry($country),
-            'risk_score' => [
-                'weather_score' => $weatherScore,
-                'inflation_score' => $inflationScore,
-                'currency_score' => $currencyScore,
-                'news_score' => $newsScore,
-                'total_score' => $totalScore,
-                'risk_level' => $riskLevel,
-                'risk_level_label' => $this->riskLevelLabel($riskLevel),
-            ],
-            'weather' => [
-                'available' => $latestWeather !== null,
-                'temperature' => $latestWeather
-                    ? round((float) $latestWeather->temperature, 2)
-                    : null,
-                'precipitation' => $latestWeather
-                    ? round((float) $latestWeather->precipitation, 2)
-                    : null,
-                'wind_speed' => $latestWeather
-                    ? round((float) $latestWeather->wind_speed, 2)
-                    : null,
-                'recorded_at' => $this->dateDisplay($latestWeather?->recorded_at),
-            ],
-            'currency' => [
-                'available' => $latestExchangeRate !== null,
-                'base_currency' => $latestExchangeRate?->base_currency,
-                'target_currency' => $latestExchangeRate?->target_currency,
-                'rate' => $latestExchangeRate
-                    ? round((float) $latestExchangeRate->rate, 4)
-                    : null,
-                'change_percentage' => $latestExchangeRate?->change_percentage !== null
-                    ? round((float) $latestExchangeRate->change_percentage, 4)
-                    : null,
-                'recorded_at' => $this->dateDisplay($latestExchangeRate?->recorded_at),
-            ],
-            'news' => $newsSummary,
-            'economic' => [
-                'inflation_available' => $latestInflation !== null,
-                'inflation_value' => $latestInflation
-                    ? round((float) $latestInflation->value, 2)
-                    : null,
-                'inflation_year' => $latestInflation?->year,
-            ],
-            'last_update' => $lastUpdate,
-        ];
-    }
-
     private function getLatestRiskScore(Country $country): ?RiskScore
     {
-        return RiskScore::query()
-            ->where('country_id', $country->id)
-            ->latest('calculated_at')
-            ->first();
+        $query = RiskScore::query()
+            ->where('country_id', $country->id);
+
+        if (Schema::hasColumn('risk_scores', 'calculated_at')) {
+            return $query->latest('calculated_at')->first();
+        }
+
+        return $query->latest()->first();
     }
 
     private function getLatestWeather(Country $country): ?WeatherData
@@ -312,7 +451,10 @@ class WatchlistController extends Controller
         return ExchangeRate::query()
             ->where('country_id', $country->id)
             ->where('base_currency', 'USD')
-            ->where('target_currency', $country->currency_code)
+            ->when(
+                $country->currency_code,
+                fn ($query) => $query->where('target_currency', $country->currency_code)
+            )
             ->latest('recorded_at')
             ->first();
     }
@@ -351,7 +493,7 @@ class WatchlistController extends Controller
 
         $averageRiskScore = $sentiments->isNotEmpty()
             ? round((float) $sentiments->avg('risk_score'), 2)
-            : 0.0;
+            : 35.0;
 
         $lastAnalyzedAt = $sentiments->max('analyzed_at');
 
@@ -369,8 +511,25 @@ class WatchlistController extends Controller
         ];
     }
 
+    private function getEconomicValue(?EconomicIndicator $indicator): ?float
+    {
+        if (!$indicator) {
+            return null;
+        }
+
+        $value = $indicator->value
+            ?? $indicator->raw_value
+            ?? null;
+
+        return is_numeric($value)
+            ? (float) $value
+            : null;
+    }
+
     private function resolveInflationScore(float $inflation): float
     {
+        $inflation = abs($inflation);
+
         return match (true) {
             $inflation <= 3 => 10.0,
             $inflation <= 5 => 25.0,
@@ -406,6 +565,20 @@ class WatchlistController extends Controller
         return $this->riskLevelLabel(
             $this->riskLevelFromScore($score)
         );
+    }
+
+    private function weatherCondition(int $weatherCode): string
+    {
+        return match (true) {
+            $weatherCode === 0 => 'Cerah',
+            in_array($weatherCode, [1, 2, 3], true) => 'Berawan',
+            in_array($weatherCode, [45, 48], true) => 'Berkabut',
+            in_array($weatherCode, [51, 53, 55, 56, 57], true) => 'Gerimis',
+            in_array($weatherCode, [61, 63, 65, 66, 67], true) => 'Hujan',
+            in_array($weatherCode, [80, 81, 82], true) => 'Hujan Lokal',
+            in_array($weatherCode, [95, 96, 99], true) => 'Badai',
+            default => 'Normal',
+        };
     }
 
     private function formatCountry(Country $country): array

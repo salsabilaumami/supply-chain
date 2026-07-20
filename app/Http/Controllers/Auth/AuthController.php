@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
@@ -66,9 +67,7 @@ class AuthController extends Controller
             'last_login_at' => now(),
         ])->save();
 
-        return redirect()->intended(
-            route('dashboard')
-        );
+        return redirect()->to('/');
     }
 
     public function showRegister(): View
@@ -108,27 +107,19 @@ class AuthController extends Controller
             'password.min' => 'Password minimal 8 karakter.',
         ]);
 
-        $user = User::create([
+        User::create([
             'name' => $validated['name'],
             'email' => strtolower($validated['email']),
-            'password' => $validated['password'],
+            'password' => Hash::make($validated['password']),
             'role' => User::ROLE_USER,
             'status' => true,
         ]);
 
-        Auth::login($user);
-
-        $request->session()->regenerate();
-
-        $user->forceFill([
-            'last_login_at' => now(),
-        ])->save();
-
         return redirect()
-            ->route('dashboard')
+            ->route('login')
             ->with(
                 'success',
-                'Akun berhasil dibuat. Selamat datang di pusat intelijen risiko.'
+                'Akun berhasil dibuat. Silakan login untuk masuk ke sistem.'
             );
     }
 

@@ -7,6 +7,7 @@ use App\Models\ExchangeRate;
 use App\Services\ExchangeRateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Throwable;
 
@@ -52,6 +53,7 @@ class CurrencyController extends Controller
             'history' => $data['history']
                 ->map(fn (ExchangeRate $exchangeRate) => $this->formatExchangeRate($exchangeRate))
                 ->values(),
+            'converter' => $data['converter'],
             'summary' => [
                 'available' => $data['currencyAvailable'],
                 'display_rate' => $data['displayRate'],
@@ -131,11 +133,20 @@ class CurrencyController extends Controller
             ? round((float) $exchangeRate->currency_risk, 2)
             : 0.0;
 
-        $riskLabel = $this->riskScoreLabel($currencyRisk);
+        $riskLabel = $currencyAvailable
+            ? $this->riskScoreLabel($currencyRisk)
+            : 'Belum tersedia';
 
         $lastUpdate = $currencyAvailable
             ? $exchangeRate->recorded_at?->format('d M Y H:i')
             : null;
+
+        $converter = $this->buildConverterData(
+            $request,
+            $countries,
+            $selectedCountry,
+            $exchangeRateService
+        );
 
         $chartLabels = $history
             ->map(fn (ExchangeRate $item) => $item->recorded_at?->format('d M H:i') ?? '-')
@@ -170,6 +181,7 @@ class CurrencyController extends Controller
             'riskLabel' => $riskLabel,
             'lastUpdate' => $lastUpdate,
             'apiError' => $apiError,
+            'converter' => $converter,
             'chartData' => [
                 'rate' => [
                     'labels' => $chartLabels,
@@ -181,6 +193,127 @@ class CurrencyController extends Controller
                 ],
             ],
         ];
+    }
+
+    private function buildConverterData(
+        Request $request,
+        Collection $countries,
+        Country $selectedCountry,
+        ExchangeRateService $exchangeRateService
+    ): array {
+        $amount = $this->parseAmount($request->input('amount', 1));
+
+        $fromCountry = $this->resolveConverterCountry(
+            $request->string('from_country')->toString(),
+            $selectedCountry,
+            $countries
+        );
+
+        $toCountry = $this->resolveConverterCountry(
+            $request->string('to_country')->toString(),
+            $this->getDefaultUsdCountry($countries) ?? $selectedCountry,
+            $countries
+        );
+
+        $result = null;
+        $error = null;
+
+        try {
+            $result = $exchangeRateService->convertCurrency(
+                (string) $fromCountry->currency_code,
+                (string) $toCountry->currency_code,
+                $amount
+            );
+        } catch (Throwable $exception) {
+            $error = $exception->getMessage();
+        }
+
+        $convertedAmount = $result['converted_amount'] ?? null;
+        $rate = $result['rate'] ?? null;
+        $reverseRate = $result['reverse_rate'] ?? null;
+        $recordedAt = $result['recorded_at'] ?? null;
+
+        return [
+            'amount' => $amount,
+            'from_country' => $fromCountry,
+            'to_country' => $toCountry,
+            'from_currency' => $fromCountry->currency_code,
+            'to_currency' => $toCountry->currency_code,
+            'result' => $result,
+            'error' => $error,
+            'display_amount' => $this->formatCurrencyAmount(
+                $amount,
+                $fromCountry->currency_code,
+                $fromCountry->currency_symbol
+            ),
+            'display_converted_amount' => $convertedAmount !== null
+                ? $this->formatCurrencyAmount(
+                    (float) $convertedAmount,
+                    $toCountry->currency_code,
+                    $toCountry->currency_symbol
+                )
+                : 'Belum tersedia',
+            'display_rate' => $rate !== null
+                ? '1 '
+                    . $fromCountry->currency_code
+                    . ' = '
+                    . $this->formatDecimal((float) $rate)
+                    . ' '
+                    . $toCountry->currency_code
+                : 'Belum tersedia',
+            'display_reverse_rate' => $reverseRate !== null
+                ? '1 '
+                    . $toCountry->currency_code
+                    . ' = '
+                    . $this->formatDecimal((float) $reverseRate)
+                    . ' '
+                    . $fromCountry->currency_code
+                : 'Belum tersedia',
+            'last_update' => $recordedAt
+                ? $recordedAt->format('d M Y H:i')
+                : null,
+        ];
+    }
+
+    private function resolveConverterCountry(
+        ?string $isoCode,
+        Country $fallback,
+        Collection $countries
+    ): Country {
+        $isoCode = strtoupper(trim((string) $isoCode));
+
+        if ($isoCode !== '') {
+            $country = Country::query()
+                ->where('iso3_code', $isoCode)
+                ->orWhere('iso2_code', $isoCode)
+                ->first();
+
+            if ($country && $country->currency_code) {
+                return $country;
+            }
+        }
+
+        if ($fallback->currency_code) {
+            return $fallback;
+        }
+
+        return $countries
+            ->first(fn (Country $country) => !empty($country->currency_code))
+            ?? $fallback;
+    }
+
+    private function getDefaultUsdCountry(Collection $countries): ?Country
+    {
+        $usa = Country::query()
+            ->where('iso3_code', 'USA')
+            ->first();
+
+        if ($usa && $usa->currency_code) {
+            return $usa;
+        }
+
+        return $countries
+            ->first(fn (Country $country) => $country->currency_code === 'USD');
     }
 
     private function getRealtimeExchangeRate(
@@ -209,6 +342,48 @@ class CurrencyController extends Controller
                 'Data kurs terbaru belum dapat diperbarui. Sistem menampilkan data terakhir yang tersimpan.',
             ];
         }
+    }
+
+    private function parseAmount(mixed $value): float
+    {
+        if (is_numeric($value)) {
+            return max(0, (float) $value);
+        }
+
+        $cleanValue = str_replace(
+            ['Rp', 'US$', '$', '.', ',', ' '],
+            ['', '', '', '', '.', ''],
+            (string) $value
+        );
+
+        if (!is_numeric($cleanValue)) {
+            return 1.0;
+        }
+
+        return max(0, (float) $cleanValue);
+    }
+
+    private function formatCurrencyAmount(
+        float $value,
+        ?string $currencyCode,
+        ?string $currencySymbol
+    ): string {
+        $prefix = $currencySymbol ?: $currencyCode ?: '';
+
+        return trim($prefix . ' ' . $this->formatDecimal($value));
+    }
+
+    private function formatDecimal(float $value): string
+    {
+        $absolute = abs($value);
+
+        $decimals = match (true) {
+            $absolute >= 1 => 4,
+            $absolute >= 0.01 => 6,
+            default => 10,
+        };
+
+        return number_format($value, $decimals, ',', '.');
     }
 
     private function formatExchangeRate(?ExchangeRate $exchangeRate): ?array

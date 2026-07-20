@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Country;
 use App\Models\NewsCache;
 use App\Services\NewsService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -34,14 +35,19 @@ class NewsController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Data intelijen berita berhasil dimuat.',
-            'selected_country' => $data['selectedCountry']
-                ? $this->formatCountry($data['selectedCountry'])
-                : null,
+            'message' => 'Data news intelligence berhasil dimuat.',
+            'selected_country' => [
+                'id' => $data['selectedCountry']->id,
+                'name' => $data['selectedCountry']->name,
+                'iso2_code' => $data['selectedCountry']->iso2_code,
+                'iso3_code' => $data['selectedCountry']->iso3_code,
+                'flag_url' => $data['selectedCountry']->flag_url,
+            ],
+            'selected_category' => $data['selectedCategory'],
             'summary' => $data['summary'],
-            'news' => $data['newsItems'],
+            'category_counts' => $data['categoryCounts'],
+            'articles' => $data['articles'],
             'chart_data' => $data['chartData'],
-            'api_error' => $data['apiError'],
         ]);
     }
 
@@ -50,197 +56,308 @@ class NewsController extends Controller
         NewsService $newsService
     ): array {
         $countries = Country::query()
-            ->orderBy('name')
+            ->alphabetical()
             ->get();
-
-        $selectedCountry = $this->resolveSelectedCountry(
-            $request,
-            $countries
-        );
-
-        $apiError = null;
-
-        $newsItems = $selectedCountry
-            ? $this->getNewsItems($selectedCountry)
-            : collect();
-
-        $shouldRefresh = $selectedCountry
-            && (
-                $request->boolean('refresh')
-                || $newsItems->isEmpty()
-            );
-
-        if ($shouldRefresh) {
-            try {
-                $newsService->getLatestNews(
-                    $selectedCountry,
-                    true
-                );
-
-                $newsItems = $this->getNewsItems($selectedCountry);
-            } catch (Throwable $exception) {
-                $apiError = $exception->getMessage();
-            }
-        }
-
-        $summary = $this->buildSummary($newsItems);
-
-        return [
-            'countries' => $countries,
-            'selectedCountry' => $selectedCountry,
-            'newsItems' => $newsItems,
-            'summary' => $summary,
-            'chartData' => $this->buildChartData($summary),
-            'apiError' => $apiError,
-        ];
-    }
-
-    private function resolveSelectedCountry(
-        Request $request,
-        Collection $countries
-    ): ?Country {
-        if ($countries->isEmpty()) {
-            return null;
-        }
 
         $selectedIsoCode = strtoupper(
             trim($request->string('country', 'IDN')->toString())
         );
 
         $selectedCountry = Country::query()
-            ->where('iso3_code', $selectedIsoCode)
-            ->orWhere('iso2_code', $selectedIsoCode)
+            ->byIsoCode($selectedIsoCode)
             ->first();
 
-        if ($selectedCountry) {
-            return $selectedCountry;
+        if (!$selectedCountry) {
+            $selectedCountry = Country::query()
+                ->where('iso3_code', 'IDN')
+                ->first();
         }
 
-        $indonesia = Country::query()
-            ->where('iso3_code', 'IDN')
-            ->first();
+        if (!$selectedCountry) {
+            $selectedCountry = $countries->firstOrFail();
+        }
 
-        return $indonesia ?: $countries->first();
-    }
+        $categories = $newsService->getCategories();
+        $selectedCategory = $this->normalizeCategory(
+            $request->string('category', 'all')->toString(),
+            $categories
+        );
 
-    private function getNewsItems(Country $country): Collection
-    {
-        return NewsCache::query()
-            ->with('sentiment')
-            ->where('country_id', $country->id)
-            ->latest('published_at')
-            ->limit(12)
-            ->get()
-            ->map(fn (NewsCache $news) => $this->formatNews($news))
-            ->values();
-    }
+        $forceRefresh = $request->boolean('refresh');
+        $apiError = null;
 
-    private function buildSummary(Collection $newsItems): array
-    {
-        $positiveCount = $newsItems
-            ->where('sentiment', 'positive')
-            ->count();
+        try {
+            $newsItems = $newsService->getLatestNews(
+                $selectedCountry,
+                $forceRefresh,
+                $selectedCategory
+            );
+        } catch (Throwable $exception) {
+            $newsItems = collect();
+            $apiError = $exception->getMessage();
+        }
 
-        $neutralCount = $newsItems
-            ->where('sentiment', 'neutral')
-            ->count();
+        $articles = $this->formatArticles(
+            $newsItems,
+            $newsService,
+            $categories
+        );
 
-        $negativeCount = $newsItems
-            ->where('sentiment', 'negative')
-            ->count();
+        $categoryCounts = $this->buildCategoryCounts(
+            $articles,
+            $categories
+        );
 
-        $averageRisk = $newsItems->isNotEmpty()
-            ? round((float) $newsItems->avg('risk_score'), 2)
-            : 0.0;
+        $summary = $this->buildSummary($articles);
+
+        $chartData = $this->buildChartData(
+            $summary,
+            $categoryCounts
+        );
 
         return [
-            'total_articles' => $newsItems->count(),
-            'positive_count' => $positiveCount,
-            'neutral_count' => $neutralCount,
-            'negative_count' => $negativeCount,
-            'average_risk_score' => $averageRisk,
-            'risk_label' => $this->riskScoreLabel($averageRisk),
+            'countries' => $countries,
+            'selectedCountry' => $selectedCountry,
+            'categories' => $categories,
+            'selectedCategory' => $selectedCategory,
+            'articles' => $articles,
+            'summary' => $summary,
+            'categoryCounts' => $categoryCounts,
+            'chartData' => $chartData,
+            'apiError' => $apiError,
         ];
     }
 
-    private function buildChartData(array $summary): array
+    private function formatArticles(
+        Collection $newsItems,
+        NewsService $newsService,
+        array $categories
+    ): array {
+        return $newsItems
+            ->map(function (NewsCache $news) use ($newsService, $categories) {
+                $category = $newsService->classifyArticle($news);
+                $sentiment = $news->sentiment?->sentiment ?? 'neutral';
+                $riskScore = round((float) ($news->sentiment?->risk_score ?? 35), 2);
+
+                return [
+                    'id' => $news->id,
+                    'title' => $news->title ?? 'Judul tidak tersedia',
+                    'description' => $news->description ?? 'Deskripsi berita belum tersedia.',
+                    'url' => $news->url,
+                    'source_name' => $news->source_name ?? 'GNews',
+                    'image_url' => $news->image_url ?? null,
+                    'published_at' => $this->formatDate($news->published_at),
+                    'category' => $category,
+                    'category_label' => $categories[$category] ?? 'Economy',
+                    'sentiment' => $sentiment,
+                    'sentiment_label' => $this->sentimentLabel($sentiment),
+                    'sentiment_class' => $this->sentimentClass($sentiment),
+                    'risk_score' => $riskScore,
+                    'risk_label' => $this->riskLabel($riskScore),
+                    'risk_class' => $this->riskClass($riskScore),
+                    'positive_score' => (int) ($news->sentiment?->positive_score ?? 0),
+                    'negative_score' => (int) ($news->sentiment?->negative_score ?? 0),
+                    'neutral_score' => (int) ($news->sentiment?->neutral_score ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function buildSummary(array $articles): array
     {
+        $total = count($articles);
+
+        $positive = collect($articles)
+            ->where('sentiment', 'positive')
+            ->count();
+
+        $neutral = collect($articles)
+            ->where('sentiment', 'neutral')
+            ->count();
+
+        $negative = collect($articles)
+            ->where('sentiment', 'negative')
+            ->count();
+
+        $averageRisk = $total > 0
+            ? round(collect($articles)->avg('risk_score'), 2)
+            : 0.0;
+
+        $dominantSentiment = $this->dominantSentiment(
+            $positive,
+            $neutral,
+            $negative
+        );
+
+        return [
+            'total' => $total,
+            'positive' => $positive,
+            'neutral' => $neutral,
+            'negative' => $negative,
+            'average_risk' => $averageRisk,
+            'average_risk_label' => $this->riskLabel($averageRisk),
+            'average_risk_class' => $this->riskClass($averageRisk),
+            'dominant_sentiment' => $dominantSentiment,
+            'dominant_sentiment_label' => $this->sentimentLabel($dominantSentiment),
+            'dominant_sentiment_class' => $this->sentimentClass($dominantSentiment),
+            'recommendation' => $this->buildRecommendation(
+                $averageRisk,
+                $negative,
+                $total
+            ),
+        ];
+    }
+
+    private function buildCategoryCounts(
+        array $articles,
+        array $categories
+    ): array {
+        $counts = [];
+
+        foreach ($categories as $key => $label) {
+            if ($key === 'all') {
+                continue;
+            }
+
+            $counts[$key] = [
+                'label' => $label,
+                'count' => collect($articles)
+                    ->where('category', $key)
+                    ->count(),
+            ];
+        }
+
+        return $counts;
+    }
+
+    private function buildChartData(
+        array $summary,
+        array $categoryCounts
+    ): array {
         return [
             'sentiment' => [
-                'labels' => [
-                    'Positif',
-                    'Netral',
-                    'Negatif',
-                ],
+                'labels' => ['Positive', 'Neutral', 'Negative'],
                 'values' => [
-                    $summary['positive_count'] ?? 0,
-                    $summary['neutral_count'] ?? 0,
-                    $summary['negative_count'] ?? 0,
+                    $summary['positive'],
+                    $summary['neutral'],
+                    $summary['negative'],
                 ],
+            ],
+            'category' => [
+                'labels' => collect($categoryCounts)
+                    ->pluck('label')
+                    ->values()
+                    ->all(),
+                'values' => collect($categoryCounts)
+                    ->pluck('count')
+                    ->values()
+                    ->all(),
             ],
         ];
     }
 
-    private function formatNews(NewsCache $news): array
-    {
-        $sentiment = $news->sentiment?->sentiment ?? 'neutral';
+    private function buildRecommendation(
+        float $averageRisk,
+        int $negative,
+        int $total
+    ): string {
+        if ($total === 0) {
+            return 'Belum ada berita yang dapat dianalisis untuk negara terpilih.';
+        }
 
-        $riskScore = $news->sentiment
-            ? round((float) $news->sentiment->risk_score, 2)
-            : 50.0;
+        if ($averageRisk >= 75 || $negative >= 5) {
+            return 'Risiko berita tinggi. Pantau isu geopolitik, gangguan logistik, dan kondisi perdagangan sebelum mengambil keputusan supply chain.';
+        }
 
-        return [
-            'id' => $news->id,
-            'title' => $news->title,
-            'description' => $news->description,
-            'url' => $news->url,
-            'image_url' => $news->image_url ?? null,
-            'source_name' => $news->source_name,
-            'author' => $news->author ?? null,
-            'published_at' => $news->published_at
-                ? $news->published_at->format('d M Y H:i')
-                : null,
-            'sentiment' => $sentiment,
-            'sentiment_label' => $this->sentimentLabel($sentiment),
-            'positive_score' => $news->sentiment?->positive_score ?? 0,
-            'negative_score' => $news->sentiment?->negative_score ?? 0,
-            'neutral_score' => $news->sentiment?->neutral_score ?? 0,
-            'risk_score' => $riskScore,
+        if ($averageRisk >= 50 || $negative >= 3) {
+            return 'Risiko berita sedang menuju tinggi. Perlu monitoring lanjutan terhadap perubahan ekonomi, logistik, dan kebijakan perdagangan.';
+        }
+
+        if ($averageRisk >= 25) {
+            return 'Risiko berita masih terkendali, tetapi perkembangan terbaru tetap perlu dipantau secara berkala.';
+        }
+
+        return 'Sentimen berita relatif aman dan belum menunjukkan gangguan besar terhadap aktivitas supply chain.';
+    }
+
+    private function dominantSentiment(
+        int $positive,
+        int $neutral,
+        int $negative
+    ): string {
+        $values = [
+            'positive' => $positive,
+            'neutral' => $neutral,
+            'negative' => $negative,
         ];
+
+        arsort($values);
+
+        return array_key_first($values) ?? 'neutral';
     }
 
-    private function riskScoreLabel(float $score): string
+    private function normalizeCategory(
+        string $category,
+        array $categories
+    ): string {
+        $category = strtolower(trim($category));
+
+        if (!array_key_exists($category, $categories)) {
+            return 'all';
+        }
+
+        return $category;
+    }
+
+    private function formatDate(mixed $date): ?string
     {
-        return match (true) {
-            $score >= 75 => 'Risiko Kritis',
-            $score >= 50 => 'Risiko Tinggi',
-            $score >= 25 => 'Risiko Sedang',
-            default => 'Risiko Rendah',
-        };
+        if (!$date) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date)->format('d M Y H:i');
+        } catch (Throwable) {
+            return null;
+        }
     }
 
-    private function sentimentLabel(?string $sentiment): string
+    private function sentimentLabel(string $sentiment): string
     {
         return match ($sentiment) {
-            'positive' => 'Positif',
-            'negative' => 'Negatif',
-            'neutral' => 'Netral',
-            default => 'Netral',
+            'positive' => 'Positive',
+            'negative' => 'Negative',
+            default => 'Neutral',
         };
     }
 
-    private function formatCountry(Country $country): array
+    private function sentimentClass(string $sentiment): string
     {
-        return [
-            'id' => $country->id,
-            'name' => $country->name,
-            'official_name' => $country->official_name,
-            'iso2_code' => $country->iso2_code,
-            'iso3_code' => $country->iso3_code,
-            'capital' => $country->capital,
-            'region' => $country->region,
-            'subregion' => $country->subregion,
-            'flag_url' => $country->flag_url,
-        ];
+        return match ($sentiment) {
+            'positive' => 'sentiment-positive',
+            'negative' => 'sentiment-negative',
+            default => 'sentiment-neutral',
+        };
+    }
+
+    private function riskLabel(float $score): string
+    {
+        return match (true) {
+            $score >= 75 => 'Critical Risk',
+            $score >= 50 => 'High Risk',
+            $score >= 25 => 'Medium Risk',
+            default => 'Low Risk',
+        };
+    }
+
+    private function riskClass(float $score): string
+    {
+        return match (true) {
+            $score >= 75 => 'risk-critical',
+            $score >= 50 => 'risk-high',
+            $score >= 25 => 'risk-medium',
+            default => 'risk-low',
+        };
     }
 }

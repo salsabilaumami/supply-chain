@@ -28,13 +28,11 @@
                     RISK SCORING ENGINE
                 </div>
 
-                <h1>
-                    Risk Scoring Engine
-                </h1>
+                <h1>Risk Scoring Engine</h1>
 
                 <p>
-                    Mesin perhitungan risiko rantai pasok global berdasarkan cuaca, inflasi,
-                    nilai tukar, dan sentimen berita.
+                    Sistem menghitung Risk Score berdasarkan Weather,
+                    Inflation, Exchange Rate, dan News Sentiment.
                 </p>
             </div>
 
@@ -53,9 +51,7 @@
                 </div>
 
                 <div>
-                    <span>
-                        Negara Dianalisis
-                    </span>
+                    <span>Negara Dianalisis</span>
 
                     <strong>
                         {{ $selectedCountry->name }}
@@ -84,9 +80,12 @@
                     @foreach ($countries as $country)
                         <option
                             value="{{ $country->iso3_code }}"
-                            @selected($selectedCountry->id === $country->id)
+                            @selected(
+                                $selectedCountry->id === $country->id
+                            )
                         >
-                            {{ $country->name }} ({{ $country->iso3_code }})
+                            {{ $country->name }}
+                            ({{ $country->iso3_code }})
                         </option>
                     @endforeach
                 </select>
@@ -97,15 +96,47 @@
                 >
                     Hitung Risiko
                 </button>
+
+                <button
+                    type="submit"
+                    name="refresh"
+                    value="1"
+                    class="btn btn-outline-primary"
+                >
+                    Sinkronkan
+                </button>
             </form>
         </section>
+
+        @if (!empty($syncWarnings))
+            <section class="risk-warning-card">
+                <i class="bi bi-info-circle"></i>
+
+                <div>
+                    <strong>
+                        Sebagian data memakai baseline atau
+                        data terakhir.
+                    </strong>
+
+                    <span>
+                        Risk Score tetap dihitung menggunakan
+                        algoritma sistem.
+                    </span>
+                </div>
+            </section>
+        @endif
 
         <section class="risk-summary-grid">
             <article class="risk-total-card">
                 <span>Total Risk Score</span>
 
                 <strong>
-                    {{ number_format($totalScore ?? 0, 2, ',', '.') }}
+                    {{ number_format(
+                        $totalScore ?? 0,
+                        2,
+                        ',',
+                        '.'
+                    ) }}
                 </strong>
 
                 <b class="{{ $totalRiskClass }}">
@@ -124,18 +155,52 @@
                     </span>
 
                     <strong>
-                        {{ number_format($component['score'] ?? 0, 2, ',', '.') }}
+                        {{ number_format(
+                            $component['score'] ?? 0,
+                            2,
+                            ',',
+                            '.'
+                        ) }}
                     </strong>
 
-                    <b class="{{ $componentClass($component['score'] ?? 0) }}">
-                        Bobot {{ number_format(($component['weight'] ?? 0) * 100, 0, ',', '.') }}%
+                    <b class="{{ $componentClass(
+                        $component['score'] ?? 0
+                    ) }}">
+                        Bobot
+                        {{ number_format(
+                            ($component['weight'] ?? 0) * 100,
+                            0,
+                            ',',
+                            '.'
+                        ) }}%
                     </b>
 
                     <small>
-                        {{ $component['source_value'] ?? 'Belum tersedia' }}
+                        {{ $component['source_value']
+                            ?? 'Belum tersedia' }}
                     </small>
                 </article>
             @endforeach
+        </section>
+
+        <section class="risk-source-grid">
+            @foreach ($sourceStatus as $key => $status)
+                <article class="risk-source-card">
+                    <span>{{ ucfirst($key) }}</span>
+
+                    <strong>{{ $status }}</strong>
+                </article>
+            @endforeach
+        </section>
+
+        <section class="risk-recommendation-card">
+            <div>
+                <span>Risk Recommendation</span>
+
+                <h2>Rekomendasi Sistem</h2>
+
+                <p>{{ $recommendation }}</p>
+            </div>
         </section>
 
         <section class="risk-formula-grid">
@@ -143,9 +208,7 @@
                 <div class="risk-card-heading">
                     <span>Formula</span>
 
-                    <h2>
-                        Algoritma Risk Score
-                    </h2>
+                    <h2>Algoritma Risk Score</h2>
                 </div>
 
                 <div class="risk-formula-box">
@@ -159,15 +222,18 @@
                     News Sentiment × 40%
                 </div>
 
+                <p>
+                    Formula ini digunakan sebagai algoritma
+                    mandiri untuk menormalisasi beberapa
+                    indikator menjadi satu nilai risiko.
+                </p>
             </article>
 
             <article class="risk-card">
                 <div class="risk-card-heading">
                     <span>Bobot</span>
 
-                    <h2>
-                        Komposisi Perhitungan
-                    </h2>
+                    <h2>Komposisi Perhitungan</h2>
                 </div>
 
                 <div class="risk-weight-list">
@@ -178,11 +244,26 @@
                             </span>
 
                             <strong>
-                                {{ number_format($component['score'], 2, ',', '.') }}
+                                {{ number_format(
+                                    $component['score'],
+                                    2,
+                                    ',',
+                                    '.'
+                                ) }}
                                 ×
-                                {{ number_format($component['weight'] * 100, 0, ',', '.') }}%
+                                {{ number_format(
+                                    $component['weight'] * 100,
+                                    0,
+                                    ',',
+                                    '.'
+                                ) }}%
                                 =
-                                {{ number_format($component['weighted_score'], 2, ',', '.') }}
+                                {{ number_format(
+                                    $component['weighted_score'],
+                                    2,
+                                    ',',
+                                    '.'
+                                ) }}
                             </strong>
                         </div>
                     @endforeach
@@ -195,9 +276,7 @@
                 <div class="risk-card-heading">
                     <span>Komponen Risiko</span>
 
-                    <h2>
-                        Skor Mentah Komponen
-                    </h2>
+                    <h2>Skor Mentah Komponen</h2>
                 </div>
 
                 <div class="risk-chart-box">
@@ -209,9 +288,7 @@
                 <div class="risk-card-heading">
                     <span>Kontribusi Bobot</span>
 
-                    <h2>
-                        Kontribusi ke Total Score
-                    </h2>
+                    <h2>Kontribusi ke Total Score</h2>
                 </div>
 
                 <div class="risk-chart-box">
@@ -224,19 +301,20 @@
             <div class="risk-card-heading">
                 <span>Detail Perhitungan</span>
 
-                <h2>
-                    Breakdown Risk Scoring
-                </h2>
+                <h2>Breakdown Risk Scoring</h2>
             </div>
 
             <div class="table-responsive risk-table-wrapper">
-                <table class="table align-middle mb-0 risk-table">
+                <table
+                    class="table align-middle mb-0 risk-table"
+                >
                     <thead>
                         <tr>
                             <th>Komponen</th>
                             <th>Skor</th>
                             <th>Bobot</th>
                             <th>Kontribusi</th>
+                            <th>Status</th>
                             <th>Keterangan</th>
                         </tr>
                     </thead>
@@ -251,17 +329,38 @@
                                 </td>
 
                                 <td>
-                                    {{ number_format($component['score'], 2, ',', '.') }}
+                                    {{ number_format(
+                                        $component['score'],
+                                        2,
+                                        ',',
+                                        '.'
+                                    ) }}
                                 </td>
 
                                 <td>
-                                    {{ number_format($component['weight'] * 100, 0, ',', '.') }}%
+                                    {{ number_format(
+                                        $component['weight'] * 100,
+                                        0,
+                                        ',',
+                                        '.'
+                                    ) }}%
                                 </td>
 
                                 <td>
                                     <strong>
-                                        {{ number_format($component['weighted_score'], 2, ',', '.') }}
+                                        {{ number_format(
+                                            $component[
+                                                'weighted_score'
+                                            ],
+                                            2,
+                                            ',',
+                                            '.'
+                                        ) }}
                                     </strong>
+                                </td>
+
+                                <td>
+                                    {{ $component['status'] }}
                                 </td>
 
                                 <td>
@@ -286,6 +385,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            overflow-x: hidden;
         }
 
         .risk-top-grid {
@@ -319,11 +419,17 @@
         .risk-filter-card,
         .risk-total-card,
         .risk-stat-card,
-        .risk-card {
+        .risk-card,
+        .risk-source-card,
+        .risk-recommendation-card,
+        .risk-warning-card {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 16px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            box-shadow:
+                0 10px 24px rgba(15, 23, 42, 0.04);
+            min-width: 0;
+            overflow: hidden;
         }
 
         .risk-country-mini-card {
@@ -361,7 +467,9 @@
         .risk-total-card span,
         .risk-stat-card span,
         .risk-card-heading span,
-        .risk-weight-list span {
+        .risk-weight-list span,
+        .risk-source-card span,
+        .risk-recommendation-card span {
             display: block;
             margin-bottom: 3px;
             color: #7c8aa5;
@@ -394,7 +502,7 @@
 
         .risk-filter {
             display: grid;
-            grid-template-columns: 520px 130px;
+            grid-template-columns: 520px 130px 115px;
             gap: 8px;
             align-items: center;
         }
@@ -407,15 +515,36 @@
             font-weight: 800;
         }
 
+        .risk-warning-card {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            background: #fffbeb;
+            color: #92400e;
+            border-color: rgba(245, 158, 11, 0.25);
+            font-size: 0.78rem;
+        }
+
+        .risk-warning-card strong {
+            display: block;
+            font-weight: 900;
+        }
+
+        .risk-warning-card span {
+            display: block;
+            font-size: 0.72rem;
+        }
+
         .risk-summary-grid {
             display: grid;
-            grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+            grid-template-columns:
+                1.4fr repeat(4, minmax(0, 1fr));
             gap: 10px;
         }
 
         .risk-total-card,
         .risk-stat-card {
-            min-width: 0;
             padding: 12px 14px;
         }
 
@@ -486,16 +615,52 @@
             border: 1px solid rgba(239, 68, 68, 0.28);
         }
 
+        .risk-source-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .risk-source-card {
+            padding: 10px 12px;
+        }
+
+        .risk-source-card strong {
+            display: block;
+            color: #111827;
+            font-size: 0.86rem;
+            font-weight: 900;
+        }
+
+        .risk-recommendation-card {
+            padding: 14px;
+        }
+
+        .risk-recommendation-card h2 {
+            margin: 0 0 6px;
+            color: #111827;
+            font-size: 1rem;
+            font-weight: 900;
+        }
+
+        .risk-recommendation-card p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
         .risk-formula-grid,
         .risk-chart-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
             gap: 10px;
         }
 
         .risk-card {
             padding: 14px;
-            min-width: 0;
         }
 
         .risk-card-heading {
@@ -514,7 +679,8 @@
             padding: 12px;
             border-radius: 14px;
             background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            border:
+                1px solid rgba(148, 163, 184, 0.18);
             color: #111827;
             font-size: 0.88rem;
             font-weight: 900;
@@ -537,7 +703,8 @@
             padding: 9px 10px;
             border-radius: 12px;
             background: #f8fafc;
-            border: 1px solid rgba(148, 163, 184, 0.14);
+            border:
+                1px solid rgba(148, 163, 184, 0.14);
         }
 
         .risk-weight-list strong {
@@ -552,13 +719,14 @@
         }
 
         .risk-table-wrapper {
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            border:
+                1px solid rgba(148, 163, 184, 0.18);
             border-radius: 14px;
             overflow: auto;
         }
 
         .risk-table {
-            min-width: 820px;
+            min-width: 900px;
         }
 
         .risk-table thead th {
@@ -574,7 +742,8 @@
         .risk-table tbody td {
             color: #334155;
             font-size: 0.8rem;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+            border-bottom:
+                1px solid rgba(148, 163, 184, 0.14);
         }
 
         .risk-table tbody td strong {
@@ -584,7 +753,13 @@
 
         @media (max-width: 1280px) {
             .risk-summary-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+            .risk-source-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
             }
 
             .risk-formula-grid,
@@ -616,7 +791,8 @@
                 padding: 12px;
             }
 
-            .risk-summary-grid {
+            .risk-summary-grid,
+            .risk-source-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -637,112 +813,162 @@
     <script
         id="riskChartData"
         type="application/json"
-    >{!! json_encode($chartData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+    >{!! json_encode(
+        $chartData ?? [],
+        JSON_HEX_TAG
+            | JSON_HEX_APOS
+            | JSON_HEX_AMP
+            | JSON_HEX_QUOT
+    ) !!}</script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            if (typeof Chart === 'undefined') {
-                return;
-            }
-
-            var chartDataElement = document.getElementById('riskChartData');
-            var chartData = {};
-
-            try {
-                chartData = JSON.parse(chartDataElement.textContent || '{}');
-            } catch (error) {
-                chartData = {};
-            }
-
-            var labels = chartData.components ? chartData.components.labels : [];
-            var scores = chartData.components ? chartData.components.scores : [];
-            var weighted = chartData.components ? chartData.components.weighted : [];
-
-            function createBarChart(canvasId, label, values, maxValue) {
-                var canvas = document.getElementById(canvasId);
-
-                if (!canvas) {
+        document.addEventListener(
+            'DOMContentLoaded',
+            function () {
+                if (typeof Chart === 'undefined') {
                     return;
                 }
 
-                new Chart(canvas, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: label,
-                                data: values,
-                                borderWidth: 1,
-                                borderRadius: 6,
-                                maxBarThickness: 34
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        layout: {
-                            padding: 0
+                var chartDataElement =
+                    document.getElementById(
+                        'riskChartData'
+                    );
+
+                var chartData = {};
+
+                try {
+                    chartData = JSON.parse(
+                        chartDataElement.textContent || '{}'
+                    );
+                } catch (error) {
+                    chartData = {};
+                }
+
+                var labels = chartData.components
+                    ? chartData.components.labels
+                    : [];
+
+                var scores = chartData.components
+                    ? chartData.components.scores
+                    : [];
+
+                var weighted = chartData.components
+                    ? chartData.components.weighted
+                    : [];
+
+                function createBarChart(
+                    canvasId,
+                    label,
+                    values,
+                    maxValue
+                ) {
+                    var canvas =
+                        document.getElementById(canvasId);
+
+                    if (!canvas) {
+                        return;
+                    }
+
+                    new Chart(canvas, {
+                        type: 'bar',
+
+                        data: {
+                            labels: labels,
+
+                            datasets: [
+                                {
+                                    label: label,
+                                    data: values,
+                                    borderWidth: 1,
+                                    borderRadius: 6,
+                                    maxBarThickness: 34
+                                }
+                            ]
                         },
-                        scales: {
-                            x: {
-                                ticks: {
-                                    font: {
-                                        size: 9
+
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+
+                            layout: {
+                                padding: 0
+                            },
+
+                            scales: {
+                                x: {
+                                    ticks: {
+                                        font: {
+                                            size: 9
+                                        }
+                                    },
+
+                                    grid: {
+                                        display: false
                                     }
                                 },
-                                grid: {
-                                    display: false
-                                }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                suggestedMax: maxValue,
-                                ticks: {
-                                    font: {
-                                        size: 9
-                                    }
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                                labels: {
-                                    boxWidth: 10,
-                                    font: {
-                                        size: 10
+
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: maxValue,
+
+                                    ticks: {
+                                        font: {
+                                            size: 9
+                                        }
                                     }
                                 }
                             },
-                            tooltip: {
-                                callbacks: {
-                                    label: function (context) {
-                                        return label + ': ' + Number(context.parsed.y).toLocaleString('id-ID', {
-                                            maximumFractionDigits: 2
-                                        });
+
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+
+                                    labels: {
+                                        boxWidth: 10,
+
+                                        font: {
+                                            size: 10
+                                        }
+                                    }
+                                },
+
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (
+                                            context
+                                        ) {
+                                            return label
+                                                + ': '
+                                                + Number(
+                                                    context.parsed.y
+                                                ).toLocaleString(
+                                                    'id-ID',
+                                                    {
+                                                        maximumFractionDigits: 2
+                                                    }
+                                                );
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                });
+                    });
+                }
+
+                createBarChart(
+                    'riskComponentChart',
+                    'Skor Komponen',
+                    scores,
+                    100
+                );
+
+                createBarChart(
+                    'riskWeightedChart',
+                    'Kontribusi Bobot',
+                    weighted,
+                    40
+                );
             }
-
-            createBarChart(
-                'riskComponentChart',
-                'Skor Komponen',
-                scores,
-                100
-            );
-
-            createBarChart(
-                'riskWeightedChart',
-                'Kontribusi Bobot',
-                weighted,
-                40
-            );
-        });
+        );
     </script>
 @endpush

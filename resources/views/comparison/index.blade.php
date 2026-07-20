@@ -1,168 +1,72 @@
 @extends('layouts.app')
 
-@section('title', 'Perbandingan Negara')
+@section('title', 'Country Comparison')
 
 @section('content')
-    @php
-        $selectedCountryA = $selectedCountryA ?? $countryA ?? null;
-        $selectedCountryB = $selectedCountryB ?? $countryB ?? null;
-
-        $countryAData = $countryAData ?? ($comparison['country_a'] ?? []);
-        $countryBData = $countryBData ?? ($comparison['country_b'] ?? []);
-
-        $countryAName = $selectedCountryA?->name ?? ($countryAData['country']['name'] ?? 'Negara A');
-        $countryBName = $selectedCountryB?->name ?? ($countryBData['country']['name'] ?? 'Negara B');
-
-        $countryAIso = $selectedCountryA?->iso3_code ?? ($countryAData['country']['iso3_code'] ?? 'IDN');
-        $countryBIso = $selectedCountryB?->iso3_code ?? ($countryBData['country']['iso3_code'] ?? 'SGP');
-
-        $countryAFlag = $selectedCountryA?->flag_url ?? ($countryAData['country']['flag_url'] ?? null);
-        $countryBFlag = $selectedCountryB?->flag_url ?? ($countryBData['country']['flag_url'] ?? null);
-
-        $countryARegion = $selectedCountryA?->region ?? ($countryAData['country']['region'] ?? '-');
-        $countryBRegion = $selectedCountryB?->region ?? ($countryBData['country']['region'] ?? '-');
-
-        $countryAScore = $countryAData['risk_score']['total_score'] ?? 0;
-        $countryBScore = $countryBData['risk_score']['total_score'] ?? 0;
-
-        $weatherA = $countryAData['risk_score']['weather_score'] ?? 0;
-        $weatherB = $countryBData['risk_score']['weather_score'] ?? 0;
-
-        $inflationA = $countryAData['risk_score']['inflation_score'] ?? 0;
-        $inflationB = $countryBData['risk_score']['inflation_score'] ?? 0;
-
-        $currencyA = $countryAData['risk_score']['currency_score'] ?? 0;
-        $currencyB = $countryBData['risk_score']['currency_score'] ?? 0;
-
-        $newsA = $countryAData['risk_score']['news_score'] ?? 0;
-        $newsB = $countryBData['risk_score']['news_score'] ?? 0;
-
-        $gdpA = $countryAData['economic']['gdp']['display_value'] ?? 'Belum tersedia';
-        $gdpB = $countryBData['economic']['gdp']['display_value'] ?? 'Belum tersedia';
-
-        $inflationValueA = $countryAData['economic']['inflation']['display_value'] ?? 'Belum tersedia';
-        $inflationValueB = $countryBData['economic']['inflation']['display_value'] ?? 'Belum tersedia';
-
-        $currencyCodeA = $selectedCountryA?->currency_code ?? ($countryAData['country']['currency_code'] ?? '-');
-        $currencyCodeB = $selectedCountryB?->currency_code ?? ($countryBData['country']['currency_code'] ?? '-');
-
-        $riskLabel = function ($score) {
-            return match (true) {
-                $score >= 75 => 'Risiko Kritis',
-                $score >= 50 => 'Risiko Tinggi',
-                $score >= 25 => 'Risiko Sedang',
-                default => 'Risiko Rendah',
-            };
-        };
-
-        $riskClass = function ($score) {
-            return match (true) {
-                $score >= 75 => 'risk-critical',
-                $score >= 50 => 'risk-high',
-                $score >= 25 => 'risk-medium',
-                default => 'risk-low',
-            };
-        };
-
-        $comparisonChartData = $comparisonChartData ?? $chartData ?? [
-            'risk' => [
-                'labels' => [$countryAIso, $countryBIso],
-                'values' => [
-                    round((float) $countryAScore, 2),
-                    round((float) $countryBScore, 2),
-                ],
-            ],
-            'economic' => [
-                'labels' => ['GDP', 'Ekspor', 'Impor', 'Inflasi', 'Populasi'],
-                'country_a' => [
-                    round((float) ($countryAData['economic']['gdp']['value'] ?? 0) / 1000000000000, 2),
-                    round((float) ($countryAData['economic']['exports']['value'] ?? 0) / 1000000000, 2),
-                    round((float) ($countryAData['economic']['imports']['value'] ?? 0) / 1000000000, 2),
-                    round((float) ($countryAData['economic']['inflation']['value'] ?? 0), 2),
-                    round((float) ($countryAData['economic']['population']['value'] ?? 0) / 1000000, 2),
-                ],
-                'country_b' => [
-                    round((float) ($countryBData['economic']['gdp']['value'] ?? 0) / 1000000000000, 2),
-                    round((float) ($countryBData['economic']['exports']['value'] ?? 0) / 1000000000, 2),
-                    round((float) ($countryBData['economic']['imports']['value'] ?? 0) / 1000000000, 2),
-                    round((float) ($countryBData['economic']['inflation']['value'] ?? 0), 2),
-                    round((float) ($countryBData['economic']['population']['value'] ?? 0) / 1000000, 2),
-                ],
-                'country_a_label' => $countryAIso,
-                'country_b_label' => $countryBIso,
-            ],
-            'operational' => [
-                'labels' => ['Cuaca', 'Inflasi', 'Kurs', 'Berita'],
-                'country_a' => [
-                    round((float) $weatherA, 2),
-                    round((float) $inflationA, 2),
-                    round((float) $currencyA, 2),
-                    round((float) $newsA, 2),
-                ],
-                'country_b' => [
-                    round((float) $weatherB, 2),
-                    round((float) $inflationB, 2),
-                    round((float) $currencyB, 2),
-                    round((float) $newsB, 2),
-                ],
-                'country_a_label' => $countryAIso,
-                'country_b_label' => $countryBIso,
-            ],
-            'labels' => [
-                'country_a' => $countryAIso,
-                'country_b' => $countryBIso,
-            ],
-        ];
-    @endphp
-
     <div class="comparison-page">
-        <section class="comparison-top-grid">
-            <div class="comparison-title-area">
+        <section class="comparison-hero">
+            <div>
                 <div class="page-eyebrow">
                     COUNTRY COMPARISON ENGINE
                 </div>
 
                 <h1>
-                    Perbandingan Negara
+                    Country Comparison
                 </h1>
 
                 <p>
-                    Bandingkan GDP, inflasi, cuaca, kurs, berita, dan total Risk Score dari dua negara.
+                    Bandingkan Germany vs Australia atau negara lain berdasarkan GDP, inflasi, risk score, cuaca, dan mata uang.
                 </p>
             </div>
+        </section>
 
+        <section class="comparison-filter-card">
             <form
                 method="GET"
                 action="{{ route('comparison.index') }}"
-                class="comparison-filter-card"
+                class="comparison-filter-form"
             >
-                <select
-                    name="country_a"
-                    class="form-select"
-                >
-                    @foreach ($countries as $country)
-                        <option
-                            value="{{ $country->iso3_code }}"
-                            @selected($country->iso3_code === $countryAIso)
-                        >
-                            {{ $country->name }} ({{ $country->iso3_code }})
-                        </option>
-                    @endforeach
-                </select>
+                <div class="comparison-field">
+                    <label for="country_a">
+                        Negara Pertama
+                    </label>
 
-                <select
-                    name="country_b"
-                    class="form-select"
-                >
-                    @foreach ($countries as $country)
-                        <option
-                            value="{{ $country->iso3_code }}"
-                            @selected($country->iso3_code === $countryBIso)
-                        >
-                            {{ $country->name }} ({{ $country->iso3_code }})
-                        </option>
-                    @endforeach
-                </select>
+                    <select
+                        name="country_a"
+                        id="country_a"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            <option
+                                value="{{ $country->iso3_code }}"
+                                @selected($countryA->id === $country->id)
+                            >
+                                {{ $country->name }} ({{ $country->iso3_code }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="comparison-field">
+                    <label for="country_b">
+                        Negara Kedua
+                    </label>
+
+                    <select
+                        name="country_b"
+                        id="country_b"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            <option
+                                value="{{ $country->iso3_code }}"
+                                @selected($countryB->id === $country->id)
+                            >
+                                {{ $country->name }} ({{ $country->iso3_code }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <button
                     type="submit"
@@ -177,309 +81,173 @@
                     value="1"
                     class="btn btn-outline-primary"
                 >
-                    Perbarui
+                    Sinkronkan
                 </button>
             </form>
         </section>
 
+        @if (!empty($syncWarnings))
+            <section class="comparison-warning">
+                <i class="bi bi-info-circle"></i>
+
+                <div>
+                    <strong>
+                        Sebagian data memakai data terakhir yang tersimpan.
+                    </strong>
+
+                    <span>
+                        Sistem tetap menghitung perbandingan dari data yang tersedia.
+                    </span>
+                </div>
+            </section>
+        @endif
+
         <section class="comparison-country-grid">
-            <article class="comparison-country-card">
-                <div class="comparison-country-main">
-                    <div class="comparison-flag">
-                        @if ($countryAFlag)
-                            <img
-                                src="{{ $countryAFlag }}"
-                                alt="Bendera {{ $countryAName }}"
-                            >
-                        @else
-                            <div class="comparison-flag-placeholder">
+            @foreach ([$summaryA, $summaryB] as $summary)
+                <article class="comparison-country-card">
+                    <div class="comparison-country-header">
+                        <div class="comparison-flag">
+                            @if (!empty($summary['country']['flag_url']))
+                                <img
+                                    src="{{ $summary['country']['flag_url'] }}"
+                                    alt="Bendera {{ $summary['country']['name'] }}"
+                                >
+                            @else
                                 <i class="bi bi-flag"></i>
-                            </div>
-                        @endif
+                            @endif
+                        </div>
+
+                        <div>
+                            <span>
+                                {{ $summary['country']['iso3_code'] }}
+                            </span>
+
+                            <strong>
+                                {{ $summary['country']['name'] }}
+                            </strong>
+
+                            <small>
+                                {{ $summary['country']['currency_code'] ?? '-' }}
+                                •
+                                {{ $summary['country']['currency_name'] ?? 'Mata uang belum tersedia' }}
+                            </small>
+                        </div>
                     </div>
 
-                    <div>
+                    <div class="comparison-metric-grid">
+                        <div>
+                            <span>GDP</span>
+                            <strong>{{ $summary['gdp']['display'] }}</strong>
+                            <small>Tahun {{ $summary['gdp']['year'] ?? '-' }}</small>
+                        </div>
+
+                        <div>
+                            <span>Inflation</span>
+                            <strong>{{ $summary['inflation']['display'] }}</strong>
+                            <small>Tahun {{ $summary['inflation']['year'] ?? '-' }}</small>
+                        </div>
+
+                        <div>
+                            <span>Risk</span>
+                            <strong>{{ $summary['risk']['display'] }}</strong>
+                            <small>{{ $summary['risk']['label'] }}</small>
+                        </div>
+
+                        <div>
+                            <span>Weather</span>
+                            <strong>{{ $summary['weather']['display'] }}</strong>
+                            <small>{{ $summary['weather']['condition'] }}</small>
+                        </div>
+
+                        <div>
+                            <span>Currency</span>
+                            <strong>{{ $summary['currency']['display'] }}</strong>
+                            <small>{{ $summary['currency']['risk_display'] }} risk</small>
+                        </div>
+                    </div>
+
+                    <div class="comparison-weather-detail">
+                        <i class="bi bi-cloud-sun"></i>
+
                         <span>
-                            Negara A
+                            {{ $summary['weather']['detail'] }}
                         </span>
-
-                        <strong>
-                            {{ $countryAName }}
-                        </strong>
-
-                        <small>
-                            {{ $countryAIso }} • {{ $countryARegion }}
-                        </small>
-                    </div>
-                </div>
-
-                <div class="comparison-score-box">
-                    <strong>
-                        {{ number_format((float) $countryAScore, 2, ',', '.') }}
-                    </strong>
-
-                    <b class="{{ $riskClass($countryAScore) }}">
-                        {{ $riskLabel($countryAScore) }}
-                    </b>
-                </div>
-            </article>
-
-            <article class="comparison-country-card">
-                <div class="comparison-country-main">
-                    <div class="comparison-flag">
-                        @if ($countryBFlag)
-                            <img
-                                src="{{ $countryBFlag }}"
-                                alt="Bendera {{ $countryBName }}"
-                            >
-                        @else
-                            <div class="comparison-flag-placeholder">
-                                <i class="bi bi-flag"></i>
-                            </div>
-                        @endif
                     </div>
 
-                    <div>
-                        <span>
-                            Negara B
-                        </span>
+                    <div class="comparison-risk-detail">
+                        <div>
+                            <span>Weather Score</span>
+                            <strong>{{ number_format($summary['risk']['weather_score'], 2, ',', '.') }}</strong>
+                        </div>
 
-                        <strong>
-                            {{ $countryBName }}
-                        </strong>
+                        <div>
+                            <span>Inflation Score</span>
+                            <strong>{{ number_format($summary['risk']['inflation_score'], 2, ',', '.') }}</strong>
+                        </div>
 
-                        <small>
-                            {{ $countryBIso }} • {{ $countryBRegion }}
-                        </small>
+                        <div>
+                            <span>Currency Score</span>
+                            <strong>{{ number_format($summary['risk']['currency_score'], 2, ',', '.') }}</strong>
+                        </div>
                     </div>
-                </div>
-
-                <div class="comparison-score-box">
-                    <strong>
-                        {{ number_format((float) $countryBScore, 2, ',', '.') }}
-                    </strong>
-
-                    <b class="{{ $riskClass($countryBScore) }}">
-                        {{ $riskLabel($countryBScore) }}
-                    </b>
-                </div>
-            </article>
+                </article>
+            @endforeach
         </section>
 
-        <section class="comparison-metric-grid">
-            <article class="comparison-metric-card">
-                <span>GDP</span>
+        <section class="comparison-recommendation-card">
+            <div>
+                <span>
+                    Best Country Recommendation
+                </span>
 
+                <h2>
+                    {{ $recommendation['country_name'] }}
+                </h2>
+
+                <p>
+                    {{ $recommendation['description'] }}
+                </p>
+            </div>
+
+            <div class="comparison-score-badge">
                 <strong>
-                    {{ $gdpA }}
+                    {{ number_format($recommendation['score'], 0, ',', '.') }}
                 </strong>
 
                 <small>
-                    {{ $countryAIso }}
+                    {{ $recommendation['label'] }}
                 </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>GDP</span>
-
-                <strong>
-                    {{ $gdpB }}
-                </strong>
-
-                <small>
-                    {{ $countryBIso }}
-                </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>Inflasi</span>
-
-                <strong>
-                    {{ $inflationValueA }}
-                    /
-                    {{ $inflationValueB }}
-                </strong>
-
-                <small>
-                    Nilai ekonomi
-                </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>Mata Uang</span>
-
-                <strong>
-                    {{ $currencyCodeA }}
-                    /
-                    {{ $currencyCodeB }}
-                </strong>
-
-                <small>
-                    Kode kurs
-                </small>
-            </article>
-        </section>
-
-        <section class="comparison-metric-grid">
-            <article class="comparison-metric-card">
-                <span>Cuaca</span>
-
-                <strong>
-                    {{ number_format((float) $weatherA, 2, ',', '.') }}
-                    /
-                    {{ number_format((float) $weatherB, 2, ',', '.') }}
-                </strong>
-
-                <small>
-                    Risiko cuaca
-                </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>Inflasi Risk</span>
-
-                <strong>
-                    {{ number_format((float) $inflationA, 2, ',', '.') }}
-                    /
-                    {{ number_format((float) $inflationB, 2, ',', '.') }}
-                </strong>
-
-                <small>
-                    Risiko inflasi
-                </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>Kurs Risk</span>
-
-                <strong>
-                    {{ number_format((float) $currencyA, 2, ',', '.') }}
-                    /
-                    {{ number_format((float) $currencyB, 2, ',', '.') }}
-                </strong>
-
-                <small>
-                    Risiko mata uang
-                </small>
-            </article>
-
-            <article class="comparison-metric-card">
-                <span>Berita</span>
-
-                <strong>
-                    {{ number_format((float) $newsA, 2, ',', '.') }}
-                    /
-                    {{ number_format((float) $newsB, 2, ',', '.') }}
-                </strong>
-
-                <small>
-                    Sentimen berita
-                </small>
-            </article>
+            </div>
         </section>
 
         <section class="comparison-chart-grid">
-            <article class="comparison-chart-card">
-                <div class="comparison-card-heading">
-                    <span>Risk Score</span>
+            <article class="comparison-panel">
+                <div class="comparison-heading">
+                    <span>GDP Comparison</span>
 
                     <h2>
-                        Risiko Total
+                        Perbandingan GDP
                     </h2>
                 </div>
 
-                <div class="chart-compact-box">
-                    <canvas id="comparisonRiskChart"></canvas>
+                <div class="comparison-chart-box">
+                    <canvas id="gdpComparisonChart"></canvas>
                 </div>
             </article>
 
-            <article class="comparison-chart-card">
-                <div class="comparison-card-heading">
-                    <span>Economic</span>
+            <article class="comparison-panel">
+                <div class="comparison-heading">
+                    <span>Risk Factors</span>
 
                     <h2>
-                        Indikator Ekonomi
+                        Inflation, Risk, Weather, Currency
                     </h2>
                 </div>
 
-                <div class="chart-compact-box">
-                    <canvas id="comparisonEconomicChart"></canvas>
+                <div class="comparison-chart-box">
+                    <canvas id="metricComparisonChart"></canvas>
                 </div>
             </article>
-
-            <article class="comparison-chart-card">
-                <div class="comparison-card-heading">
-                    <span>Operational</span>
-
-                    <h2>
-                        Risiko Operasional
-                    </h2>
-                </div>
-
-                <div class="chart-compact-box">
-                    <canvas id="comparisonOperationalChart"></canvas>
-                </div>
-            </article>
-        </section>
-
-        <section class="comparison-detail-card">
-            <div class="comparison-card-heading">
-                <span>Ringkasan Detail</span>
-
-                <h2>
-                    Perbandingan Komponen Risiko
-                </h2>
-            </div>
-
-            <div class="table-responsive comparison-table-wrapper">
-                <table class="table align-middle mb-0 comparison-table">
-                    <thead>
-                        <tr>
-                            <th>Komponen</th>
-                            <th>{{ $countryAIso }}</th>
-                            <th>{{ $countryBIso }}</th>
-                            <th>Keterangan</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        <tr>
-                            <td>Total Risiko</td>
-                            <td>{{ number_format((float) $countryAScore, 2, ',', '.') }}</td>
-                            <td>{{ number_format((float) $countryBScore, 2, ',', '.') }}</td>
-                            <td>Skor utama risiko rantai pasok.</td>
-                        </tr>
-
-                        <tr>
-                            <td>Risiko Cuaca</td>
-                            <td>{{ number_format((float) $weatherA, 2, ',', '.') }}</td>
-                            <td>{{ number_format((float) $weatherB, 2, ',', '.') }}</td>
-                            <td>Risiko dari kondisi cuaca.</td>
-                        </tr>
-
-                        <tr>
-                            <td>Risiko Inflasi</td>
-                            <td>{{ number_format((float) $inflationA, 2, ',', '.') }}</td>
-                            <td>{{ number_format((float) $inflationB, 2, ',', '.') }}</td>
-                            <td>Risiko tekanan ekonomi.</td>
-                        </tr>
-
-                        <tr>
-                            <td>Risiko Mata Uang</td>
-                            <td>{{ number_format((float) $currencyA, 2, ',', '.') }}</td>
-                            <td>{{ number_format((float) $currencyB, 2, ',', '.') }}</td>
-                            <td>Risiko perubahan nilai tukar.</td>
-                        </tr>
-
-                        <tr>
-                            <td>Risiko Berita</td>
-                            <td>{{ number_format((float) $newsA, 2, ',', '.') }}</td>
-                            <td>{{ number_format((float) $newsB, 2, ',', '.') }}</td>
-                            <td>Risiko dari sentimen berita.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
         </section>
     </div>
 @endsection
@@ -488,66 +256,96 @@
     <style>
         .comparison-page {
             width: 100%;
-            max-width: 1180px;
+            max-width: 1100px;
             margin: 0 auto;
-            padding: 14px 18px 24px;
+            padding: 10px 12px 22px;
             display: flex;
             flex-direction: column;
             gap: 10px;
+            overflow-x: hidden;
         }
 
-        .comparison-top-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(560px, 700px);
-            gap: 12px;
-            align-items: end;
-        }
-
-        .comparison-title-area {
-            padding-left: 6px;
-        }
-
-        .comparison-title-area h1 {
+        .comparison-hero h1 {
             margin: 0 0 4px;
             color: #111827;
-            font-size: 1.55rem;
-            font-weight: 900;
-            line-height: 1.1;
+            font-size: 1.45rem;
+            font-weight: 950;
         }
 
-        .comparison-title-area p {
+        .comparison-hero p {
             margin: 0;
             color: #7c8aa5;
-            font-size: 0.82rem;
-            line-height: 1.42;
-            max-width: 660px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            max-width: 760px;
         }
 
         .comparison-filter-card,
         .comparison-country-card,
-        .comparison-metric-card,
-        .comparison-chart-card,
-        .comparison-detail-card {
+        .comparison-recommendation-card,
+        .comparison-panel,
+        .comparison-warning {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 15px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+            min-width: 0;
+            overflow: hidden;
         }
 
         .comparison-filter-card {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 100px 100px;
-            gap: 7px;
-            align-items: center;
-            padding: 9px 10px;
+            padding: 10px;
         }
 
-        .comparison-filter-card .form-select,
-        .comparison-filter-card .btn {
+        .comparison-filter-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 110px 110px;
+            gap: 8px;
+            align-items: end;
+        }
+
+        .comparison-field label,
+        .comparison-country-header span,
+        .comparison-metric-grid span,
+        .comparison-recommendation-card span,
+        .comparison-heading span,
+        .comparison-risk-detail span {
+            display: block;
+            margin-bottom: 3px;
+            color: #7c8aa5;
+            font-size: 0.66rem;
+            font-weight: 850;
+            text-transform: uppercase;
+            letter-spacing: 0.035em;
+        }
+
+        .comparison-filter-form .form-select,
+        .comparison-filter-form .btn {
             height: 36px;
-            border-radius: 9px;
-            font-size: 0.78rem;
+            border-radius: 10px;
+            font-size: 0.79rem;
             font-weight: 800;
+        }
+
+        .comparison-warning {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            background: #fffbeb;
+            color: #92400e;
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+
+        .comparison-warning strong {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 900;
+        }
+
+        .comparison-warning span {
+            display: block;
+            font-size: 0.72rem;
         }
 
         .comparison-country-grid {
@@ -557,26 +355,25 @@
         }
 
         .comparison-country-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 11px 12px;
+            padding: 12px;
         }
 
-        .comparison-country-main {
+        .comparison-country-header {
             display: flex;
             align-items: center;
             gap: 10px;
-            min-width: 0;
+            margin-bottom: 10px;
         }
 
         .comparison-flag {
-            width: 40px;
-            height: 27px;
-            border-radius: 8px;
+            width: 44px;
+            height: 30px;
+            border-radius: 9px;
             overflow: hidden;
             background: #e2e8f0;
+            display: grid;
+            place-items: center;
+            color: #64748b;
             flex: 0 0 auto;
         }
 
@@ -586,219 +383,200 @@
             object-fit: cover;
         }
 
-        .comparison-flag-placeholder {
-            width: 100%;
-            height: 100%;
-            display: grid;
-            place-items: center;
-            color: #64748b;
-        }
-
-        .comparison-country-main span,
-        .comparison-metric-card span,
-        .comparison-card-heading span {
-            display: block;
-            margin-bottom: 3px;
-            color: #7c8aa5;
-            font-size: 0.66rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.035em;
-        }
-
-        .comparison-country-main strong {
+        .comparison-country-header strong {
             display: block;
             color: #111827;
-            font-size: 0.95rem;
-            font-weight: 900;
+            font-size: 0.98rem;
+            font-weight: 950;
             line-height: 1.2;
         }
 
-        .comparison-country-main small {
+        .comparison-country-header small {
             display: block;
             color: #7c8aa5;
-            font-size: 0.7rem;
-            line-height: 1.3;
-        }
-
-        .comparison-score-box {
-            text-align: right;
-            flex: 0 0 auto;
-        }
-
-        .comparison-score-box strong {
-            display: block;
-            color: #111827;
-            font-size: 1.08rem;
-            font-weight: 900;
-            line-height: 1;
-            margin-bottom: 5px;
-        }
-
-        .comparison-score-box b {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 104px;
-            padding: 5px 8px;
-            border-radius: 999px;
-            font-size: 0.66rem;
-            font-weight: 850;
-            white-space: nowrap;
-        }
-
-        .risk-low {
-            background: #eef6ff;
-            color: #1d4ed8;
-            border: 1px solid rgba(37, 99, 235, 0.18);
-        }
-
-        .risk-medium {
-            background: #cffafe;
-            color: #0f172a;
-            border: 1px solid rgba(6, 182, 212, 0.24);
-        }
-
-        .risk-high {
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid rgba(245, 158, 11, 0.3);
-        }
-
-        .risk-critical {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid rgba(239, 68, 68, 0.28);
+            font-size: 0.72rem;
         }
 
         .comparison-metric-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px;
         }
 
-        .comparison-metric-card {
-            padding: 11px 12px;
+        .comparison-metric-grid div {
+            min-width: 0;
+            padding: 9px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+        }
+
+        .comparison-metric-grid strong {
+            display: block;
+            color: #111827;
+            font-size: 0.78rem;
+            font-weight: 950;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+        }
+
+        .comparison-metric-grid small {
+            color: #7c8aa5;
+            font-size: 0.68rem;
+            line-height: 1.3;
+        }
+
+        .comparison-weather-detail {
+            display: flex;
+            gap: 7px;
+            align-items: center;
+            margin-top: 9px;
+            padding: 9px;
+            border-radius: 12px;
+            background: #eef6ff;
+            color: #1d4ed8;
+            font-size: 0.74rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .comparison-risk-detail {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .comparison-risk-detail div {
+            padding: 8px;
+            border-radius: 11px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.16);
             min-width: 0;
         }
 
-        .comparison-metric-card strong {
-            display: block;
+        .comparison-risk-detail strong {
             color: #111827;
-            font-size: 0.92rem;
+            font-size: 0.75rem;
             font-weight: 900;
-            line-height: 1.2;
-            word-break: break-word;
         }
 
-        .comparison-metric-card small {
+        .comparison-recommendation-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 140px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+        }
+
+        .comparison-recommendation-card h2 {
+            margin: 0 0 4px;
+            color: #111827;
+            font-size: 1.1rem;
+            font-weight: 950;
+        }
+
+        .comparison-recommendation-card p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .comparison-score-badge {
+            min-height: 86px;
+            border-radius: 14px;
+            background: #eef6ff;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+            color: #1d4ed8;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .comparison-score-badge strong {
             display: block;
-            margin-top: 4px;
-            color: #7c8aa5;
+            font-size: 1.4rem;
+            font-weight: 950;
+            line-height: 1;
+        }
+
+        .comparison-score-badge small {
+            color: #1d4ed8;
             font-size: 0.68rem;
+            font-weight: 850;
+            line-height: 1.3;
         }
 
         .comparison-chart-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
         }
 
-        .comparison-chart-card {
+        .comparison-panel {
             padding: 12px;
-            min-width: 0;
         }
 
-        .comparison-card-heading {
-            margin-bottom: 8px;
+        .comparison-heading {
+            margin-bottom: 9px;
         }
 
-        .comparison-card-heading h2 {
+        .comparison-heading h2 {
             margin: 0;
             color: #111827;
-            font-size: 0.94rem;
-            font-weight: 900;
-            line-height: 1.25;
+            font-size: 0.95rem;
+            font-weight: 950;
         }
 
-        .chart-compact-box {
-            width: 100%;
-            height: 145px;
+        .comparison-chart-box {
+            height: 180px;
         }
 
-        .comparison-detail-card {
-            padding: 12px;
-        }
-
-        .comparison-table-wrapper {
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 13px;
-            overflow: auto;
-        }
-
-        .comparison-table {
-            min-width: 720px;
-        }
-
-        .comparison-table thead th {
-            background: #f8fafc;
-            color: #64748b;
-            font-size: 0.7rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 0.035em;
-            white-space: nowrap;
-        }
-
-        .comparison-table tbody td {
-            color: #334155;
-            font-size: 0.78rem;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-        }
-
-        @media (max-width: 1280px) {
-            .comparison-top-grid,
+        @media (max-width: 1100px) {
+            .comparison-country-grid,
             .comparison-chart-grid {
                 grid-template-columns: 1fr;
             }
 
-            .comparison-filter-card {
-                grid-template-columns: 1fr 1fr auto auto;
+            .comparison-metric-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .comparison-filter-form {
+                grid-template-columns: 1fr 1fr;
             }
         }
 
-        @media (max-width: 860px) {
-            .comparison-country-grid,
-            .comparison-metric-grid,
-            .comparison-filter-card {
+        @media (max-width: 780px) {
+            .comparison-filter-form,
+            .comparison-recommendation-card {
                 grid-template-columns: 1fr;
             }
 
-            .comparison-country-card {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .comparison-score-box {
-                text-align: left;
-            }
-
-            .comparison-filter-card .btn {
+            .comparison-filter-form .btn {
                 width: 100%;
+            }
+
+            .comparison-metric-grid,
+            .comparison-risk-detail {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
-        @media (max-width: 720px) {
+        @media (max-width: 520px) {
             .comparison-page {
-                padding: 12px;
+                padding: 10px;
             }
 
-            .comparison-title-area {
-                padding-left: 0;
+            .comparison-hero h1 {
+                font-size: 1.25rem;
             }
 
-            .comparison-title-area h1 {
-                font-size: 1.4rem;
+            .comparison-metric-grid,
+            .comparison-risk-detail {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -810,7 +588,7 @@
     <script
         id="comparisonChartData"
         type="application/json"
-    >{!! json_encode($comparisonChartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+    >{!! json_encode($chartData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -827,124 +605,137 @@
                 chartData = {};
             }
 
-            var countryALabel = chartData.labels ? chartData.labels.country_a : 'Negara A';
-            var countryBLabel = chartData.labels ? chartData.labels.country_b : 'Negara B';
+            function createBarChart(canvasId, labels, values, label) {
+                var canvas = document.getElementById(canvasId);
 
-            var chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: {
-                    padding: 0
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            font: {
-                                size: 9
+                if (!canvas) {
+                    return;
+                }
+
+                new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: label,
+                                data: values,
+                                borderWidth: 1,
+                                borderRadius: 8
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                }
                             }
                         },
-                        grid: {
-                            display: false
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            font: {
-                                size: 9
+                        plugins: {
+                            legend: {
+                                display: false
                             }
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            boxWidth: 10,
-                            font: {
-                                size: 10
-                            }
-                        }
-                    }
+                });
+            }
+
+            function createGroupedBarChart(canvasId, labels, dataA, dataB, labelA, labelB) {
+                var canvas = document.getElementById(canvasId);
+
+                if (!canvas) {
+                    return;
                 }
-            };
 
-            var riskCanvas = document.getElementById('comparisonRiskChart');
-
-            if (riskCanvas) {
-                new Chart(riskCanvas, {
+                new Chart(canvas, {
                     type: 'bar',
                     data: {
-                        labels: chartData.risk ? chartData.risk.labels : [],
+                        labels: labels,
                         datasets: [
                             {
-                                label: 'Total',
-                                data: chartData.risk ? chartData.risk.values : [],
+                                label: labelA,
+                                data: dataA,
                                 borderWidth: 1,
-                                borderRadius: 6,
-                                maxBarThickness: 26
-                            }
-                        ]
-                    },
-                    options: chartOptions
-                });
-            }
-
-            var economicCanvas = document.getElementById('comparisonEconomicChart');
-
-            if (economicCanvas) {
-                new Chart(economicCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: chartData.economic ? chartData.economic.labels : [],
-                        datasets: [
-                            {
-                                label: countryALabel,
-                                data: chartData.economic ? chartData.economic.country_a : [],
-                                borderWidth: 1,
-                                borderRadius: 5,
-                                maxBarThickness: 20
+                                borderRadius: 8
                             },
                             {
-                                label: countryBLabel,
-                                data: chartData.economic ? chartData.economic.country_b : [],
+                                label: labelB,
+                                data: dataB,
                                 borderWidth: 1,
-                                borderRadius: 5,
-                                maxBarThickness: 20
+                                borderRadius: 8
                             }
                         ]
                     },
-                    options: chartOptions
-                });
-            }
-
-            var operationalCanvas = document.getElementById('comparisonOperationalChart');
-
-            if (operationalCanvas) {
-                new Chart(operationalCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: chartData.operational ? chartData.operational.labels : [],
-                        datasets: [
-                            {
-                                label: countryALabel,
-                                data: chartData.operational ? chartData.operational.country_a : [],
-                                borderWidth: 1,
-                                borderRadius: 5,
-                                maxBarThickness: 20
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
                             },
-                            {
-                                label: countryBLabel,
-                                data: chartData.operational ? chartData.operational.country_b : [],
-                                borderWidth: 1,
-                                borderRadius: 5,
-                                maxBarThickness: 20
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                }
                             }
-                        ]
-                    },
-                    options: chartOptions
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    boxWidth: 10,
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
             }
+
+            createBarChart(
+                'gdpComparisonChart',
+                chartData.gdp?.labels || [],
+                chartData.gdp?.values || [],
+                'GDP dalam miliar USD'
+            );
+
+            createGroupedBarChart(
+                'metricComparisonChart',
+                chartData.metrics?.labels || [],
+                chartData.metrics?.country_a || [],
+                chartData.metrics?.country_b || [],
+                chartData.metrics?.country_a_name || 'Negara A',
+                chartData.metrics?.country_b_name || 'Negara B'
+            );
         });
     </script>
 @endpush

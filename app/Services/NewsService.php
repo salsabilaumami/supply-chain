@@ -17,35 +17,142 @@ use Throwable;
 
 class NewsService
 {
-    private const MAX_ARTICLES = 10;
+    private const MAX_ARTICLES = 12;
 
-    private const RECENT_DAYS = 7;
+    private const RECENT_DAYS = 10;
+
+    private const CATEGORIES = [
+        'all' => [
+            'label' => 'Semua Berita',
+            'terms' => [
+                'supply chain',
+                'logistics',
+                'trade',
+                'economy',
+                'export',
+                'import',
+                'shipping',
+                'port',
+                'cargo',
+                'inflation',
+            ],
+        ],
+        'logistics' => [
+            'label' => 'Logistics',
+            'terms' => [
+                'logistics',
+                'supply chain',
+                'distribution',
+                'warehouse',
+                'freight',
+                'cargo',
+                'delivery',
+                'transportation',
+            ],
+        ],
+        'trade' => [
+            'label' => 'Trade',
+            'terms' => [
+                'trade',
+                'export',
+                'import',
+                'tariff',
+                'customs',
+                'trade deal',
+                'trade war',
+                'restriction',
+            ],
+        ],
+        'shipping' => [
+            'label' => 'Shipping',
+            'terms' => [
+                'shipping',
+                'port',
+                'vessel',
+                'container',
+                'cargo ship',
+                'maritime',
+                'port congestion',
+                'shipment',
+            ],
+        ],
+        'economy' => [
+            'label' => 'Economy',
+            'terms' => [
+                'economy',
+                'inflation',
+                'market',
+                'business',
+                'investment',
+                'recession',
+                'growth',
+                'currency',
+            ],
+        ],
+        'geopolitical' => [
+            'label' => 'Geopolitical',
+            'terms' => [
+                'geopolitical',
+                'conflict',
+                'war',
+                'sanction',
+                'tension',
+                'border',
+                'crisis',
+                'political risk',
+            ],
+        ],
+    ];
 
     public function getLatestNews(
         Country $country,
-        bool $forceRefresh = false
+        bool $forceRefresh = false,
+        ?string $category = null
     ): Collection {
+        $category = $this->normalizeCategory($category);
+
         if (!$forceRefresh) {
             $cachedNews = $this->getCachedNews($country);
 
             if ($cachedNews->isNotEmpty()) {
-                return $cachedNews;
+                $filteredNews = $this->filterByCategory(
+                    $cachedNews,
+                    $category
+                );
+
+                if ($category === 'all' || $filteredNews->count() >= 4) {
+                    return $filteredNews;
+                }
             }
         }
 
         try {
-            $articles = $this->fetchFromGNews($country);
+            $articles = $this->fetchFromGNews(
+                $country,
+                $category
+            );
 
             if ($articles->isEmpty()) {
-                return $this->getCachedNews($country);
+                return $this->filterByCategory(
+                    $this->getCachedNews($country),
+                    $category
+                );
             }
 
-            return $this->storeArticles(
+            $storedArticles = $this->storeArticles(
                 $country,
                 $articles
             );
+
+            return $this->filterByCategory(
+                $storedArticles,
+                $category
+            );
         } catch (Throwable $exception) {
-            $cachedNews = $this->getCachedNews($country);
+            $cachedNews = $this->filterByCategory(
+                $this->getCachedNews($country),
+                $category
+            );
 
             if ($cachedNews->isNotEmpty()) {
                 return $cachedNews;
@@ -57,8 +164,52 @@ class NewsService
         }
     }
 
-    private function fetchFromGNews(Country $country): Collection
+    public function getCategories(): array
     {
+        return collect(self::CATEGORIES)
+            ->map(fn (array $category) => $category['label'])
+            ->all();
+    }
+
+    public function classifyArticle(NewsCache $news): string
+    {
+        $text = $this->buildArticleText($news);
+
+        $bestCategory = 'economy';
+        $bestScore = 0;
+
+        foreach (self::CATEGORIES as $key => $category) {
+            if ($key === 'all') {
+                continue;
+            }
+
+            $score = 0;
+
+            foreach ($category['terms'] as $term) {
+                if (str_contains($text, Str::lower($term))) {
+                    $score++;
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestCategory = $key;
+            }
+        }
+
+        return $bestCategory;
+    }
+
+    public function categoryLabel(string $category): string
+    {
+        return self::CATEGORIES[$category]['label']
+            ?? self::CATEGORIES['economy']['label'];
+    }
+
+    private function fetchFromGNews(
+        Country $country,
+        string $category = 'all'
+    ): Collection {
         $apiKey = config('services.gnews.api_key') ?: env('GNEWS_API_KEY');
 
         if (!$apiKey) {
@@ -72,7 +223,11 @@ class NewsService
 
         $endpoint = $baseUrl . '/search';
 
-        $queries = $this->buildSearchQueries($country);
+        $queries = $this->buildSearchQueries(
+            $country,
+            $category
+        );
+
         $articles = collect();
 
         foreach ($queries as $query) {
@@ -114,8 +269,10 @@ class NewsService
             ->values();
     }
 
-    private function buildSearchQueries(Country $country): array
-    {
+    private function buildSearchQueries(
+        Country $country,
+        string $category = 'all'
+    ): array {
         $countryName = trim((string) $country->name);
         $countryName = str_replace('"', '', $countryName);
 
@@ -123,9 +280,27 @@ class NewsService
             $countryName = 'global';
         }
 
+        $category = $this->normalizeCategory($category);
+        $terms = self::CATEGORIES[$category]['terms'] ?? self::CATEGORIES['all']['terms'];
+
+        $primaryTerms = collect($terms)
+            ->take(6)
+            ->map(fn (string $term) => $this->formatSearchTerm($term))
+            ->implode(' OR ');
+
+        $secondaryTerms = collect(self::CATEGORIES['all']['terms'])
+            ->take(6)
+            ->map(fn (string $term) => $this->formatSearchTerm($term))
+            ->implode(' OR ');
+
         return [
             Str::limit(
-                '"' . $countryName . '" AND (supply chain OR logistics OR trade OR economy OR export OR import OR shipping)',
+                '"' . $countryName . '" AND (' . $primaryTerms . ')',
+                190,
+                ''
+            ),
+            Str::limit(
+                '"' . $countryName . '" AND (' . $secondaryTerms . ')',
                 190,
                 ''
             ),
@@ -134,12 +309,18 @@ class NewsService
                 190,
                 ''
             ),
-            Str::limit(
-                '"' . $countryName . '" AND (trade OR economy OR logistics)',
-                190,
-                ''
-            ),
         ];
+    }
+
+    private function formatSearchTerm(string $term): string
+    {
+        $term = trim($term);
+
+        if (str_contains($term, ' ')) {
+            return '"' . str_replace('"', '', $term) . '"';
+        }
+
+        return $term;
     }
 
     private function storeArticles(
@@ -203,6 +384,7 @@ class NewsService
 
         return $stored
             ->filter()
+            ->sortByDesc('published_at')
             ->values();
     }
 
@@ -226,15 +408,7 @@ class NewsService
 
     private function analyzeArticle(NewsCache $news): array
     {
-        $text = Str::lower(
-            trim(
-                ($news->title ?? '')
-                . ' '
-                . ($news->description ?? '')
-                . ' '
-                . ($news->content ?? '')
-            )
-        );
+        $text = $this->buildArticleText($news);
 
         $positiveKeywords = $this->getPositiveKeywords();
         $negativeKeywords = $this->getNegativeKeywords();
@@ -258,7 +432,7 @@ class NewsService
         };
 
         $riskScore = match ($sentiment) {
-            'negative' => min(90, 45 + ($negativeScore * 8)),
+            'negative' => min(95, 45 + ($negativeScore * 8)),
             'positive' => max(10, 35 - ($positiveScore * 4)),
             default => 35,
         };
@@ -270,6 +444,34 @@ class NewsService
             'neutral_score' => $neutralScore,
             'risk_score' => round((float) $riskScore, 2),
         ];
+    }
+
+    private function buildArticleText(NewsCache $news): string
+    {
+        return Str::lower(
+            trim(
+                ($news->title ?? '')
+                . ' '
+                . ($news->description ?? '')
+                . ' '
+                . ($news->content ?? '')
+                . ' '
+                . ($news->source_name ?? '')
+            )
+        );
+    }
+
+    private function filterByCategory(
+        Collection $news,
+        string $category
+    ): Collection {
+        if ($category === 'all') {
+            return $news->values();
+        }
+
+        return $news
+            ->filter(fn (NewsCache $item) => $this->classifyArticle($item) === $category)
+            ->values();
     }
 
     private function getPositiveKeywords(): array
@@ -401,5 +603,16 @@ class NewsService
         } catch (Throwable) {
             return null;
         }
+    }
+
+    private function normalizeCategory(?string $category): string
+    {
+        $category = Str::lower(trim((string) $category));
+
+        if (!array_key_exists($category, self::CATEGORIES)) {
+            return 'all';
+        }
+
+        return $category;
     }
 }

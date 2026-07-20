@@ -4,16 +4,110 @@ namespace App\Services;
 
 class RiskScoringService
 {
-    private array $weights = [
-        'weather' => 0.30,
-        'inflation' => 0.20,
-        'currency' => 0.10,
-        'news' => 0.40,
-    ];
+    public const WEATHER_WEIGHT = 0.30;
+    public const INFLATION_WEIGHT = 0.20;
+    public const CURRENCY_WEIGHT = 0.10;
+    public const NEWS_WEIGHT = 0.40;
 
-    public function getWeights(): array
+    public function calculateWeatherScore(
+        float $precipitation = 0,
+        float $windSpeed = 0,
+        int $weatherCode = 0
+    ): float {
+        $score = 0;
+
+        if ($precipitation <= 0) {
+            $score += 5;
+        } elseif ($precipitation <= 2) {
+            $score += 20;
+        } elseif ($precipitation <= 10) {
+            $score += 45;
+        } elseif ($precipitation <= 25) {
+            $score += 65;
+        } else {
+            $score += 85;
+        }
+
+        if ($windSpeed >= 60) {
+            $score += 15;
+        } elseif ($windSpeed >= 40) {
+            $score += 10;
+        } elseif ($windSpeed >= 25) {
+            $score += 5;
+        }
+
+        if (in_array($weatherCode, [95, 96, 99], true)) {
+            $score += 20;
+        } elseif (in_array($weatherCode, [61, 63, 65, 66, 67, 80, 81, 82], true)) {
+            $score += 10;
+        }
+
+        return $this->normalizeScore($score);
+    }
+
+    public function calculateInflationScore(?float $inflation): float
     {
-        return $this->weights;
+        if ($inflation === null) {
+            return 30.0;
+        }
+
+        $inflation = abs($inflation);
+
+        return match (true) {
+            $inflation <= 2 => 10.0,
+            $inflation <= 5 => 25.0,
+            $inflation <= 8 => 50.0,
+            $inflation <= 12 => 75.0,
+            default => 90.0,
+        };
+    }
+
+    public function calculateCurrencyScore(
+        ?float $changePercentage,
+        ?float $storedCurrencyRisk = null
+    ): float {
+        if ($storedCurrencyRisk !== null) {
+            return $this->normalizeScore($storedCurrencyRisk);
+        }
+
+        if ($changePercentage === null) {
+            return 20.0;
+        }
+
+        $change = abs($changePercentage);
+
+        return match (true) {
+            $change <= 1 => 10.0,
+            $change <= 3 => 25.0,
+            $change <= 6 => 45.0,
+            $change <= 10 => 70.0,
+            default => 90.0,
+        };
+    }
+
+    public function calculateNewsScore(
+        int $positiveCount = 0,
+        int $neutralCount = 0,
+        int $negativeCount = 0,
+        ?float $averageRiskScore = null
+    ): float {
+        if ($averageRiskScore !== null && $averageRiskScore > 0) {
+            return $this->normalizeScore($averageRiskScore);
+        }
+
+        $total = $positiveCount + $neutralCount + $negativeCount;
+
+        if ($total <= 0) {
+            return 35.0;
+        }
+
+        $score = (
+            ($positiveCount * 15)
+            + ($neutralCount * 35)
+            + ($negativeCount * 75)
+        ) / $total;
+
+        return $this->normalizeScore($score);
     }
 
     public function calculateTotalScore(
@@ -22,16 +116,59 @@ class RiskScoringService
         float $currencyScore,
         float $newsScore
     ): float {
-        $totalScore =
-            ($weatherScore * $this->weights['weather']) +
-            ($inflationScore * $this->weights['inflation']) +
-            ($currencyScore * $this->weights['currency']) +
-            ($newsScore * $this->weights['news']);
+        $weatherScore = $this->normalizeScore($weatherScore);
+        $inflationScore = $this->normalizeScore($inflationScore);
+        $currencyScore = $this->normalizeScore($currencyScore);
+        $newsScore = $this->normalizeScore($newsScore);
 
-        return round($totalScore, 2);
+        $totalScore =
+            ($weatherScore * self::WEATHER_WEIGHT)
+            + ($inflationScore * self::INFLATION_WEIGHT)
+            + ($currencyScore * self::CURRENCY_WEIGHT)
+            + ($newsScore * self::NEWS_WEIGHT);
+
+        return $this->normalizeScore($totalScore);
     }
 
-    public function determineRiskLevel(float $score): string
+    public function calculateDetailedScore(
+        float $weatherScore,
+        float $inflationScore,
+        float $currencyScore,
+        float $newsScore
+    ): array {
+        $weatherScore = $this->normalizeScore($weatherScore);
+        $inflationScore = $this->normalizeScore($inflationScore);
+        $currencyScore = $this->normalizeScore($currencyScore);
+        $newsScore = $this->normalizeScore($newsScore);
+
+        $weatherWeighted = $weatherScore * self::WEATHER_WEIGHT;
+        $inflationWeighted = $inflationScore * self::INFLATION_WEIGHT;
+        $currencyWeighted = $currencyScore * self::CURRENCY_WEIGHT;
+        $newsWeighted = $newsScore * self::NEWS_WEIGHT;
+
+        $totalScore = $this->calculateTotalScore(
+            $weatherScore,
+            $inflationScore,
+            $currencyScore,
+            $newsScore
+        );
+
+        return [
+            'weather_score' => $weatherScore,
+            'inflation_score' => $inflationScore,
+            'currency_score' => $currencyScore,
+            'news_score' => $newsScore,
+            'weather_weighted' => round($weatherWeighted, 2),
+            'inflation_weighted' => round($inflationWeighted, 2),
+            'currency_weighted' => round($currencyWeighted, 2),
+            'news_weighted' => round($newsWeighted, 2),
+            'total_score' => $totalScore,
+            'risk_level' => $this->getRiskLevel($totalScore),
+            'risk_label' => $this->getRiskLabel($totalScore),
+        ];
+    }
+
+    public function getRiskLevel(float $score): string
     {
         return match (true) {
             $score >= 75 => 'critical',
@@ -41,86 +178,47 @@ class RiskScoringService
         };
     }
 
-    public function calculateWeatherScore(
-        float $precipitation,
-        float $windSpeed,
-        int $weatherCode
-    ): float {
-        $precipitationScore = match (true) {
-            $precipitation >= 50 => 100,
-            $precipitation >= 20 => 80,
-            $precipitation >= 10 => 60,
-            $precipitation >= 2.5 => 30,
-            default => 10,
-        };
-
-        $windScore = match (true) {
-            $windSpeed >= 90 => 100,
-            $windSpeed >= 60 => 80,
-            $windSpeed >= 40 => 60,
-            $windSpeed >= 20 => 30,
-            default => 10,
-        };
-
-        $weatherConditionScore = match (true) {
-            in_array($weatherCode, [95, 96, 99], true) => 100,
-            in_array($weatherCode, [80, 81, 82], true) => 75,
-            in_array($weatherCode, [61, 63, 65, 66, 67], true) => 60,
-            in_array($weatherCode, [45, 48], true) => 40,
-            default => 10,
-        };
-
-        $weatherScore =
-            ($precipitationScore * 0.35) +
-            ($windScore * 0.35) +
-            ($weatherConditionScore * 0.30);
-
-        return round($weatherScore, 2);
-    }
-
-    public function calculateInflationScore(float $inflationRate): float
+    public function determineRiskLevel(float $score): string
     {
-        $inflationScore = match (true) {
-            $inflationRate < 0 => 55,
-            $inflationRate <= 2 => 10,
-            $inflationRate <= 4 => 25,
-            $inflationRate <= 6 => 45,
-            $inflationRate <= 10 => 70,
-            $inflationRate <= 20 => 85,
-            default => 100,
-        };
-
-        return (float) $inflationScore;
+        return $this->getRiskLevel($score);
     }
 
-    public function calculateCurrencyScore(float $changePercentage): float
+    public function getRiskLabel(float $score): string
     {
-        $absoluteChange = abs($changePercentage);
-
-        $currencyScore = match (true) {
-            $absoluteChange <= 1 => 10,
-            $absoluteChange <= 3 => 25,
-            $absoluteChange <= 5 => 45,
-            $absoluteChange <= 10 => 70,
-            $absoluteChange <= 20 => 85,
-            default => 100,
+        return match (true) {
+            $score >= 75 => 'Critical Risk',
+            $score >= 50 => 'High Risk',
+            $score >= 25 => 'Medium Risk',
+            default => 'Low Risk',
         };
-
-        return (float) $currencyScore;
     }
 
-    public function calculateNewsScore(
-        int $positiveCount,
-        int $negativeCount
-    ): float {
-        $totalWords = $positiveCount + $negativeCount;
+    public function determineRiskLabel(float $score): string
+    {
+        return $this->getRiskLabel($score);
+    }
 
-        if ($totalWords === 0) {
-            return 50.0;
-        }
+    public function getRecommendation(
+        float $score,
+        string $countryName
+    ): string {
+        return match (true) {
+            $score >= 75 =>
+                "{$countryName} berada pada kategori Critical Risk. Keputusan supply chain perlu dievaluasi ulang karena potensi gangguan sangat tinggi.",
 
-        $negativeRatio = $negativeCount / $totalWords;
+            $score >= 50 =>
+                "{$countryName} berada pada kategori High Risk. Perlu mitigasi terhadap cuaca, inflasi, kurs, dan sentimen berita sebelum mengambil keputusan supply chain.",
 
-        return round($negativeRatio * 100, 2);
+            $score >= 25 =>
+                "{$countryName} berada pada kategori Medium Risk. Negara masih dapat dipantau, tetapi perlu monitoring berkala terhadap perubahan indikator.",
+
+            default =>
+                "{$countryName} berada pada kategori Low Risk. Kondisi relatif aman untuk pemantauan rantai pasok, tetapi tetap perlu evaluasi berkala.",
+        };
+    }
+
+    private function normalizeScore(float $score): float
+    {
+        return round(min(100, max(0, $score)), 2);
     }
 }

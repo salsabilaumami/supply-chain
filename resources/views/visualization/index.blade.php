@@ -15,8 +15,7 @@
                 </h1>
 
                 <p>
-                    Visualisasi trend GDP, inflasi, kurs mata uang, dan Risk Score
-                    berdasarkan negara yang dipilih.
+                    Visualisasi trend GDP, inflasi, kurs mata uang, dan Risk Score berdasarkan negara yang dipilih.
                 </p>
             </div>
 
@@ -79,8 +78,33 @@
                 >
                     Tampilkan
                 </button>
+
+                <button
+                    type="submit"
+                    name="refresh"
+                    value="1"
+                    class="btn btn-outline-primary"
+                >
+                    Sinkronkan
+                </button>
             </form>
         </section>
+
+        @if (!empty($syncWarnings))
+            <section class="visualization-warning">
+                <i class="bi bi-info-circle"></i>
+
+                <div>
+                    <strong>
+                        Sebagian data memakai data terakhir yang tersimpan.
+                    </strong>
+
+                    <span>
+                        Grafik tetap ditampilkan dari data yang tersedia.
+                    </span>
+                </div>
+            </section>
+        @endif
 
         <section class="visualization-summary-grid">
             <article class="visualization-stat-card">
@@ -127,9 +151,33 @@
                 </strong>
 
                 <small>
-                    {{ $summary['risk_points'] ?? 0 }} data risk score
+                    {{ $summary['risk_label'] ?? 'Belum tersedia' }}
                 </small>
             </article>
+        </section>
+
+        <section class="visualization-insight-grid">
+            @foreach ($trendInsight as $insight)
+                <article class="visualization-insight-card insight-{{ $insight['direction'] }}">
+                    <span>
+                        {{ $insight['label'] }}
+                    </span>
+
+                    <strong>
+                        @if ($insight['direction'] === 'up')
+                            Meningkat
+                        @elseif ($insight['direction'] === 'down')
+                            Menurun
+                        @else
+                            Stabil
+                        @endif
+                    </strong>
+
+                    <p>
+                        {{ $insight['description'] }}
+                    </p>
+                </article>
+            @endforeach
         </section>
 
         <section class="visualization-chart-grid">
@@ -144,6 +192,12 @@
 
                 <div class="visualization-chart-box">
                     <canvas id="gdpTrendChart"></canvas>
+
+                    @if (($summary['gdp_points'] ?? 0) === 0)
+                        <div class="visualization-empty-chart">
+                            Data GDP belum tersedia.
+                        </div>
+                    @endif
                 </div>
             </article>
 
@@ -158,6 +212,12 @@
 
                 <div class="visualization-chart-box">
                     <canvas id="inflationTrendChart"></canvas>
+
+                    @if (($summary['inflation_points'] ?? 0) === 0)
+                        <div class="visualization-empty-chart">
+                            Data inflasi belum tersedia.
+                        </div>
+                    @endif
                 </div>
             </article>
 
@@ -172,6 +232,12 @@
 
                 <div class="visualization-chart-box">
                     <canvas id="currencyTrendChart"></canvas>
+
+                    @if (($summary['currency_points'] ?? 0) === 0)
+                        <div class="visualization-empty-chart">
+                            Data kurs belum tersedia. Klik Sinkronkan.
+                        </div>
+                    @endif
                 </div>
             </article>
 
@@ -186,6 +252,12 @@
 
                 <div class="visualization-chart-box">
                     <canvas id="riskTrendChart"></canvas>
+
+                    @if (($summary['risk_points'] ?? 0) === 0)
+                        <div class="visualization-empty-chart">
+                            Data risk belum tersedia.
+                        </div>
+                    @endif
                 </div>
             </article>
         </section>
@@ -202,6 +274,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            overflow-x: hidden;
         }
 
         .visualization-top-grid {
@@ -234,11 +307,15 @@
         .visualization-country-mini-card,
         .visualization-filter-card,
         .visualization-stat-card,
-        .visualization-chart-card {
+        .visualization-chart-card,
+        .visualization-insight-card,
+        .visualization-warning {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 16px;
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            min-width: 0;
+            overflow: hidden;
         }
 
         .visualization-country-mini-card {
@@ -274,7 +351,8 @@
 
         .visualization-country-mini-card span,
         .visualization-stat-card span,
-        .visualization-card-heading span {
+        .visualization-card-heading span,
+        .visualization-insight-card span {
             display: block;
             margin-bottom: 3px;
             color: #7c8aa5;
@@ -307,7 +385,7 @@
 
         .visualization-filter {
             display: grid;
-            grid-template-columns: 520px 105px;
+            grid-template-columns: 520px 105px 115px;
             gap: 8px;
             align-items: center;
         }
@@ -320,6 +398,27 @@
             font-weight: 800;
         }
 
+        .visualization-warning {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            background: #fffbeb;
+            color: #92400e;
+            border-color: rgba(245, 158, 11, 0.25);
+            font-size: 0.78rem;
+        }
+
+        .visualization-warning strong {
+            display: block;
+            font-weight: 900;
+        }
+
+        .visualization-warning span {
+            display: block;
+            font-size: 0.72rem;
+        }
+
         .visualization-summary-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -327,7 +426,6 @@
         }
 
         .visualization-stat-card {
-            min-width: 0;
             padding: 12px 14px;
         }
 
@@ -348,6 +446,43 @@
             line-height: 1.35;
         }
 
+        .visualization-insight-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .visualization-insight-card {
+            padding: 12px;
+        }
+
+        .visualization-insight-card strong {
+            display: block;
+            color: #111827;
+            font-size: 0.86rem;
+            font-weight: 900;
+            margin-bottom: 5px;
+        }
+
+        .visualization-insight-card p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.72rem;
+            line-height: 1.42;
+        }
+
+        .insight-up {
+            border-color: rgba(245, 158, 11, 0.26);
+        }
+
+        .insight-down {
+            border-color: rgba(37, 99, 235, 0.20);
+        }
+
+        .insight-stable {
+            border-color: rgba(148, 163, 184, 0.22);
+        }
+
         .visualization-chart-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -356,7 +491,6 @@
 
         .visualization-chart-card {
             padding: 14px;
-            min-width: 0;
         }
 
         .visualization-card-heading {
@@ -372,12 +506,28 @@
         }
 
         .visualization-chart-box {
+            position: relative;
             width: 100%;
             height: 210px;
         }
 
+        .visualization-empty-chart {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: #7c8aa5;
+            font-size: 0.8rem;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.82);
+            border-radius: 12px;
+            text-align: center;
+            padding: 16px;
+        }
+
         @media (max-width: 1280px) {
-            .visualization-summary-grid {
+            .visualization-summary-grid,
+            .visualization-insight-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
@@ -409,7 +559,8 @@
                 padding: 12px;
             }
 
-            .visualization-summary-grid {
+            .visualization-summary-grid,
+            .visualization-insight-grid {
                 grid-template-columns: 1fr;
             }
 

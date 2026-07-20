@@ -13,8 +13,8 @@
     @endphp
 
     <div class="currency-page">
-        <section class="currency-top-grid">
-            <div class="currency-title-area">
+        <section class="currency-hero">
+            <div class="currency-hero-text">
                 <div class="page-eyebrow">
                     CURRENCY IMPACT DASHBOARD
                 </div>
@@ -24,11 +24,11 @@
                 </h1>
 
                 <p>
-                    Pantau nilai tukar, perubahan kurs, dan risiko mata uang negara terpilih.
+                    Pantau nilai tukar, perubahan kurs, dan risiko mata uang untuk mendukung keputusan rantai pasok global.
                 </p>
             </div>
 
-            <div class="currency-country-mini-card">
+            <div class="currency-country-card">
                 <div class="currency-country-flag">
                     @if ($selectedCountry->flag_url)
                         <img
@@ -42,7 +42,7 @@
                     @endif
                 </div>
 
-                <div>
+                <div class="currency-country-info">
                     <span>
                         Negara Dipantau
                     </span>
@@ -60,26 +60,32 @@
             </div>
         </section>
 
-        <section class="currency-filter-card">
+        <section class="currency-control-card">
             <form
                 method="GET"
                 action="{{ route('currency.index') }}"
-                class="currency-filter"
+                class="currency-dashboard-form"
             >
-                <select
-                    name="country"
-                    id="country"
-                    class="form-select"
-                >
-                    @foreach ($countries as $country)
-                        <option
-                            value="{{ $country->iso3_code }}"
-                            @selected($selectedCountry->id === $country->id)
-                        >
-                            {{ $country->name }} ({{ $country->iso3_code }})
-                        </option>
-                    @endforeach
-                </select>
+                <div class="currency-field">
+                    <label for="country">
+                        Pilih Negara Dashboard
+                    </label>
+
+                    <select
+                        name="country"
+                        id="country"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            <option
+                                value="{{ $country->iso3_code }}"
+                                @selected($selectedCountry->id === $country->id)
+                            >
+                                {{ $country->name }} ({{ $country->currency_code ?? '-' }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <button
                     type="submit"
@@ -109,89 +115,99 @@
             </div>
         @endif
 
-        <section class="currency-summary-grid">
-            <article class="currency-stat-card">
-                <span>Kurs Terbaru</span>
+        <section class="currency-primary-grid">
+            <article class="currency-exchange-card">
+                <div class="currency-section-heading">
+                    <span>
+                        Nilai Tukar Utama
+                    </span>
 
-                <strong>
-                    {{ $displayRate ?? 'Belum tersedia' }}
-                </strong>
+                    <h2>
+                        USD ke {{ $selectedCountry->currency_code ?? '-' }}
+                    </h2>
+                </div>
 
-                <small>
-                    USD ke {{ $selectedCountry->currency_code ?? '-' }}
-                </small>
+                <div class="currency-rate-display">
+                    <span>
+                        Kurs Terbaru
+                    </span>
+
+                    <strong>
+                        {{ $displayRate ?? 'Belum tersedia' }}
+                    </strong>
+
+                    <small>
+                        Data kurs utama yang digunakan untuk pemantauan negara terpilih.
+                    </small>
+                </div>
+
+                <div class="currency-mini-stats">
+                    <div>
+                        <span>
+                            Perubahan
+                        </span>
+
+                        <strong>
+                            {{ $displayChange ?? 'Belum ada pembanding' }}
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>
+                            Risiko
+                        </span>
+
+                        <strong>
+                            {{ number_format($currencyRisk ?? 0, 2, ',', '.') }}
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>
+                            Update
+                        </span>
+
+                        <strong>
+                            {{ $lastUpdate ?? 'Belum tersedia' }}
+                        </strong>
+                    </div>
+                </div>
             </article>
 
-            <article class="currency-stat-card">
-                <span>Perubahan</span>
+            <article class="currency-status-card">
+                <div class="currency-section-heading">
+                    <span>
+                        Status Risiko
+                    </span>
+
+                    <h2>
+                        Risiko Mata Uang
+                    </h2>
+                </div>
+
+                <div class="currency-risk-circle {{ $riskBadgeClass }}">
+                    {{ number_format($currencyRisk ?? 0, 0, ',', '.') }}
+                </div>
 
                 <strong>
-                    {{ $displayChange ?? 'Belum ada pembanding' }}
-                </strong>
-
-                <small>
-                    Perubahan kurs terakhir
-                </small>
-            </article>
-
-            <article class="currency-stat-card">
-                <span>Currency Risk</span>
-
-                <strong>
-                    {{ number_format($currencyRisk ?? 0, 2, ',', '.') }}
-                </strong>
-
-                <small>
                     {{ $riskLabel ?? 'Belum tersedia' }}
-                </small>
-            </article>
-
-            <article class="currency-stat-card">
-                <span>Status</span>
-
-                <strong>
-                    <b class="{{ $riskBadgeClass }}">
-                        {{ $riskLabel ?? 'Belum tersedia' }}
-                    </b>
                 </strong>
 
-                <small>
-                    Risiko mata uang
-                </small>
-            </article>
-
-            <article class="currency-stat-card">
-                <span>Mata Uang</span>
-
-                <strong>
-                    {{ $selectedCountry->currency_code ?? '-' }}
-                </strong>
-
-                <small>
-                    {{ $selectedCountry->currency_name ?? 'Belum tersedia' }}
-                </small>
-            </article>
-
-            <article class="currency-stat-card">
-                <span>Update</span>
-
-                <strong>
-                    {{ $lastUpdate ?? 'Belum tersedia' }}
-                </strong>
-
-                <small>
-                    Pembaruan terakhir
-                </small>
+                <p>
+                    Skor ini membantu membaca dampak volatilitas kurs terhadap aktivitas impor, ekspor, dan rantai pasok.
+                </p>
             </article>
         </section>
 
         <section class="currency-chart-grid">
-            <article class="currency-chart-card">
-                <div class="currency-card-heading">
-                    <span>Trend Kurs</span>
+            <article class="currency-panel">
+                <div class="currency-section-heading">
+                    <span>
+                        Grafik Perubahan Kurs
+                    </span>
 
                     <h2>
-                        Grafik Nilai Tukar
+                        Trend Nilai Tukar
                     </h2>
                 </div>
 
@@ -200,12 +216,14 @@
                 </div>
             </article>
 
-            <article class="currency-chart-card">
-                <div class="currency-card-heading">
-                    <span>Risk Trend</span>
+            <article class="currency-panel">
+                <div class="currency-section-heading">
+                    <span>
+                        Grafik Risiko
+                    </span>
 
                     <h2>
-                        Grafik Risiko Kurs
+                        Trend Risiko Kurs
                     </h2>
                 </div>
 
@@ -215,9 +233,184 @@
             </article>
         </section>
 
-        <section class="currency-detail-card">
-            <div class="currency-card-heading">
-                <span>Riwayat Kurs</span>
+        <section class="currency-converter-card">
+            <div class="currency-section-heading">
+                <span>
+                    Fitur Tambahan
+                </span>
+
+                <h2>
+                    Konversi Mata Uang Antar Negara
+                </h2>
+            </div>
+
+            <form
+                method="GET"
+                action="{{ route('currency.index') }}"
+                class="currency-converter-form"
+            >
+                <input
+                    type="hidden"
+                    name="country"
+                    value="{{ $selectedCountry->iso3_code }}"
+                >
+
+                <div class="currency-field">
+                    <label for="amount">
+                        Nominal
+                    </label>
+
+                    <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        name="amount"
+                        id="amount"
+                        class="form-control"
+                        value="{{ $converter['amount'] ?? 1 }}"
+                    >
+                </div>
+
+                <div class="currency-field">
+                    <label for="from_country">
+                        Dari Negara
+                    </label>
+
+                    <select
+                        name="from_country"
+                        id="from_country"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            @if ($country->currency_code)
+                                <option
+                                    value="{{ $country->iso3_code }}"
+                                    @selected(($converter['from_country']->id ?? null) === $country->id)
+                                >
+                                    {{ $country->name }} - {{ $country->currency_code }}
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="currency-field">
+                    <label for="to_country">
+                        Ke Negara
+                    </label>
+
+                    <select
+                        name="to_country"
+                        id="to_country"
+                        class="form-select"
+                    >
+                        @foreach ($countries as $country)
+                            @if ($country->currency_code)
+                                <option
+                                    value="{{ $country->iso3_code }}"
+                                    @selected(($converter['to_country']->id ?? null) === $country->id)
+                                >
+                                    {{ $country->name }} - {{ $country->currency_code }}
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Konversi
+                </button>
+            </form>
+
+            @if (!empty($converter['error']))
+                <div class="currency-alert currency-alert-small">
+                    <i class="bi bi-exclamation-triangle"></i>
+
+                    <span>
+                        {{ $converter['error'] }}
+                    </span>
+                </div>
+            @endif
+
+            <div class="converter-box">
+                <div class="converter-result">
+                    <span>
+                        Dari
+                    </span>
+
+                    <strong>
+                        {{ $converter['display_amount'] ?? 'Belum tersedia' }}
+                    </strong>
+
+                    <small>
+                        {{ $converter['from_country']->name ?? '-' }}
+                        •
+                        {{ $converter['from_currency'] ?? '-' }}
+                    </small>
+                </div>
+
+                <div class="converter-icon">
+                    <i class="bi bi-arrow-left-right"></i>
+                </div>
+
+                <div class="converter-result">
+                    <span>
+                        Menjadi
+                    </span>
+
+                    <strong>
+                        {{ $converter['display_converted_amount'] ?? 'Belum tersedia' }}
+                    </strong>
+
+                    <small>
+                        {{ $converter['to_country']->name ?? '-' }}
+                        •
+                        {{ $converter['to_currency'] ?? '-' }}
+                    </small>
+                </div>
+            </div>
+
+            <div class="converter-rate-row">
+                <div>
+                    <span>
+                        Rate
+                    </span>
+
+                    <strong>
+                        {{ $converter['display_rate'] ?? 'Belum tersedia' }}
+                    </strong>
+                </div>
+
+                <div>
+                    <span>
+                        Reverse Rate
+                    </span>
+
+                    <strong>
+                        {{ $converter['display_reverse_rate'] ?? 'Belum tersedia' }}
+                    </strong>
+                </div>
+
+                <div>
+                    <span>
+                        Update
+                    </span>
+
+                    <strong>
+                        {{ $converter['last_update'] ?? 'Belum tersedia' }}
+                    </strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="currency-panel">
+            <div class="currency-section-heading">
+                <span>
+                    Riwayat Kurs
+                </span>
 
                 <h2>
                     Data Kurs Terakhir
@@ -289,63 +482,67 @@
     <style>
         .currency-page {
             width: 100%;
-            max-width: 1180px;
+            max-width: 1080px;
             margin: 0 auto;
-            padding: 14px 18px 24px;
+            padding: 10px 12px 22px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            overflow-x: hidden;
         }
 
-        .currency-top-grid {
+        .currency-hero {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 300px;
-            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) 250px;
+            gap: 10px;
             align-items: end;
         }
 
-        .currency-title-area {
-            padding-left: 6px;
+        .currency-hero-text {
+            min-width: 0;
         }
 
-        .currency-title-area h1 {
+        .currency-hero-text h1 {
             margin: 0 0 4px;
             color: #111827;
-            font-size: 1.65rem;
-            font-weight: 900;
+            font-size: 1.45rem;
+            font-weight: 950;
             line-height: 1.1;
         }
 
-        .currency-title-area p {
+        .currency-hero-text p {
             margin: 0;
             color: #7c8aa5;
-            font-size: 0.84rem;
-            line-height: 1.45;
+            font-size: 0.8rem;
+            line-height: 1.4;
             max-width: 720px;
         }
 
-        .currency-country-mini-card,
-        .currency-filter-card,
-        .currency-stat-card,
-        .currency-chart-card,
-        .currency-detail-card {
+        .currency-country-card,
+        .currency-control-card,
+        .currency-exchange-card,
+        .currency-status-card,
+        .currency-panel,
+        .currency-converter-card {
             background: #ffffff;
             border: 1px solid rgba(148, 163, 184, 0.22);
-            border-radius: 16px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+            min-width: 0;
+            overflow: hidden;
         }
 
-        .currency-country-mini-card {
+        .currency-country-card {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 12px;
-            min-height: 76px;
+            min-height: 66px;
+            padding: 9px 11px;
         }
 
         .currency-country-flag {
-            width: 42px;
-            height: 28px;
+            width: 40px;
+            height: 27px;
             border-radius: 8px;
             overflow: hidden;
             background: #e2e8f0;
@@ -366,109 +563,190 @@
             color: #64748b;
         }
 
-        .currency-country-mini-card span,
-        .currency-stat-card span,
-        .currency-card-heading span {
+        .currency-country-info {
+            min-width: 0;
+        }
+
+        .currency-country-info span,
+        .currency-section-heading span,
+        .currency-field label,
+        .currency-rate-display span,
+        .currency-mini-stats span,
+        .converter-result span,
+        .converter-rate-row span {
             display: block;
             margin-bottom: 3px;
             color: #7c8aa5;
-            font-size: 0.68rem;
-            font-weight: 800;
+            font-size: 0.66rem;
+            font-weight: 850;
             text-transform: uppercase;
             letter-spacing: 0.035em;
         }
 
-        .currency-country-mini-card strong {
+        .currency-country-info strong {
             display: block;
             color: #111827;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 900;
             line-height: 1.2;
+            overflow-wrap: anywhere;
         }
 
-        .currency-country-mini-card small {
+        .currency-country-info small {
             display: block;
             color: #7c8aa5;
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             line-height: 1.3;
         }
 
-        .currency-filter-card {
-            width: fit-content;
-            max-width: 100%;
-            padding: 10px 12px;
+        .currency-control-card {
+            padding: 9px 10px;
         }
 
-        .currency-filter {
+        .currency-dashboard-form {
             display: grid;
-            grid-template-columns: 520px 105px 105px;
+            grid-template-columns: minmax(0, 1fr) 95px 95px;
             gap: 8px;
-            align-items: center;
+            align-items: end;
         }
 
-        .currency-filter .form-select,
-        .currency-filter .btn {
-            height: 38px;
+        .currency-field {
+            min-width: 0;
+        }
+
+        .currency-dashboard-form .form-select,
+        .currency-dashboard-form .btn,
+        .currency-converter-form .form-control,
+        .currency-converter-form .form-select,
+        .currency-converter-form .btn {
+            height: 36px;
             border-radius: 10px;
-            font-size: 0.82rem;
+            font-size: 0.79rem;
             font-weight: 800;
+            min-width: 0;
         }
 
         .currency-alert {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 12px;
-            border-radius: 14px;
+            padding: 9px 11px;
+            border-radius: 13px;
             background: #fffbeb;
             color: #92400e;
             border: 1px solid rgba(245, 158, 11, 0.22);
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 750;
         }
 
-        .currency-summary-grid {
+        .currency-alert-small {
+            margin-bottom: 8px;
+        }
+
+        .currency-primary-grid {
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.55fr);
             gap: 10px;
         }
 
-        .currency-stat-card {
-            min-width: 0;
-            padding: 12px 14px;
+        .currency-exchange-card,
+        .currency-status-card,
+        .currency-panel,
+        .currency-converter-card {
+            padding: 12px;
         }
 
-        .currency-stat-card strong {
+        .currency-section-heading {
+            margin-bottom: 9px;
+        }
+
+        .currency-section-heading h2 {
+            margin: 0;
+            color: #111827;
+            font-size: 0.95rem;
+            font-weight: 950;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .currency-rate-display {
+            padding: 12px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f8fafc, #eef6ff);
+            border: 1px solid rgba(37, 99, 235, 0.12);
+            min-width: 0;
+        }
+
+        .currency-rate-display strong {
+            display: block;
+            color: #111827;
+            font-size: 1.25rem;
+            font-weight: 950;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .currency-rate-display small {
+            display: block;
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 0.72rem;
+            line-height: 1.35;
+        }
+
+        .currency-mini-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .currency-mini-stats div {
+            padding: 9px;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            min-width: 0;
+        }
+
+        .currency-mini-stats strong {
+            display: block;
+            color: #111827;
+            font-size: 0.78rem;
+            font-weight: 900;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+        }
+
+        .currency-status-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .currency-risk-circle {
+            width: 72px;
+            height: 72px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            font-size: 1.25rem;
+            font-weight: 950;
+        }
+
+        .currency-status-card > strong {
             display: block;
             color: #111827;
             font-size: 0.95rem;
-            font-weight: 900;
-            line-height: 1.25;
-            word-break: break-word;
+            font-weight: 950;
         }
 
-        .currency-stat-card small {
-            display: block;
-            margin-top: 4px;
-            color: #7c8aa5;
-            font-size: 0.7rem;
-            line-height: 1.3;
-        }
-
-        .currency-stat-card b,
-        .risk-low,
-        .risk-medium,
-        .risk-high,
-        .risk-critical {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            min-width: 110px;
-            padding: 5px 8px;
-            border-radius: 999px;
-            font-size: 0.68rem;
-            font-weight: 850;
-            white-space: nowrap;
+        .currency-status-card p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.73rem;
+            line-height: 1.4;
         }
 
         .risk-low {
@@ -501,46 +779,112 @@
             gap: 10px;
         }
 
-        .currency-chart-card {
-            padding: 14px;
-            min-width: 0;
-        }
-
-        .currency-card-heading {
-            margin-bottom: 10px;
-        }
-
-        .currency-card-heading h2 {
-            margin: 0;
-            color: #111827;
-            font-size: 0.98rem;
-            font-weight: 900;
-            line-height: 1.25;
-        }
-
         .currency-chart-box {
             width: 100%;
-            height: 165px;
+            height: 155px;
         }
 
-        .currency-detail-card {
-            padding: 14px;
+        .currency-converter-form {
+            display: grid;
+            grid-template-columns: 0.5fr 1fr 1fr 92px;
+            gap: 8px;
+            align-items: end;
+            margin-bottom: 9px;
+        }
+
+        .currency-converter-form .btn {
+            width: 100%;
+        }
+
+        .converter-box {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .converter-result {
+            padding: 10px;
+            border-radius: 13px;
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .converter-result strong {
+            display: block;
+            color: #111827;
+            font-size: 0.94rem;
+            font-weight: 950;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .converter-result small {
+            display: block;
+            margin-top: 4px;
+            color: #7c8aa5;
+            font-size: 0.7rem;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+        }
+
+        .converter-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            color: #2563eb;
+            background: #eef6ff;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+            margin: 0 auto;
+        }
+
+        .converter-rate-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .converter-rate-row > div {
+            padding: 9px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            background: #ffffff;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .converter-rate-row strong {
+            display: block;
+            color: #111827;
+            font-size: 0.75rem;
+            font-weight: 900;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .currency-table-wrapper {
+            width: 100%;
+            max-width: 100%;
             border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 14px;
-            overflow: auto;
+            border-radius: 13px;
+            overflow-x: auto;
+            overflow-y: hidden;
         }
 
         .currency-table {
-            min-width: 760px;
+            min-width: 700px;
+            width: 100%;
         }
 
         .currency-table thead th {
             background: #f8fafc;
             color: #64748b;
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.035em;
@@ -549,59 +893,70 @@
 
         .currency-table tbody td {
             color: #334155;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             border-bottom: 1px solid rgba(148, 163, 184, 0.14);
         }
 
-        @media (max-width: 1280px) {
-            .currency-summary-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-
+        @media (max-width: 1100px) {
+            .currency-primary-grid,
             .currency-chart-grid {
                 grid-template-columns: 1fr;
             }
-        }
 
-        @media (max-width: 980px) {
-            .currency-top-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .currency-filter-card {
-                width: 100%;
-            }
-
-            .currency-filter {
-                grid-template-columns: 1fr;
-            }
-
-            .currency-filter .btn {
-                width: 100%;
-            }
-        }
-
-        @media (max-width: 720px) {
-            .currency-page {
-                padding: 12px;
-            }
-
-            .currency-summary-grid {
+            .currency-converter-form {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
-            .currency-title-area {
-                padding-left: 0;
-            }
-
-            .currency-title-area h1 {
-                font-size: 1.45rem;
+            .converter-rate-row {
+                grid-template-columns: 1fr;
             }
         }
 
-        @media (max-width: 520px) {
-            .currency-summary-grid {
+        @media (max-width: 900px) {
+            .currency-hero {
                 grid-template-columns: 1fr;
+            }
+
+            .currency-dashboard-form {
+                grid-template-columns: 1fr;
+            }
+
+            .currency-dashboard-form .btn {
+                width: 100%;
+            }
+
+            .currency-mini-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .currency-converter-form {
+                grid-template-columns: 1fr;
+            }
+
+            .converter-box {
+                grid-template-columns: 1fr;
+            }
+
+            .converter-icon {
+                transform: rotate(90deg);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .currency-page {
+                padding: 10px;
+            }
+
+            .currency-hero-text h1 {
+                font-size: 1.25rem;
+            }
+
+            .currency-rate-display strong {
+                font-size: 1.05rem;
+            }
+
+            .currency-table {
+                min-width: 620px;
             }
         }
     </style>
@@ -776,25 +1131,19 @@
                 });
             }
 
-            var rateLabels = getChartLabels('rate');
-            var rateValues = getChartValues('rate');
-
-            var riskLabels = getChartLabels('risk');
-            var riskValues = getChartValues('risk');
-
             createLineChart(
                 'currencyRateChart',
                 'Nilai Tukar',
-                rateLabels,
-                rateValues,
+                getChartLabels('rate'),
+                getChartValues('rate'),
                 false
             );
 
             createLineChart(
                 'currencyRiskChart',
                 'Risiko Kurs',
-                riskLabels,
-                riskValues,
+                getChartLabels('risk'),
+                getChartValues('risk'),
                 true
             );
         });
